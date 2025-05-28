@@ -1,4 +1,7 @@
+numpy<2
 rdkit
 streamlit
 crewai
 transformers
+requests
+Pillow
