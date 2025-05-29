@@ -4,4 +4,5 @@ streamlit
 crewai
 transformers
 requests
-Pillow
+pillow
+pytest

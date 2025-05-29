@@ -1,6 +1,7 @@
 import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import Draw
+from chemtools.scorer import get_all_scores
 from io import BytesIO
 
 # --- Helpers ---
@@ -40,5 +41,14 @@ if smiles_input:
     if mol:
         img_bytes = mol_to_image_bytes(mol)
         st.image(img_bytes, caption=f"Structure for SMILES: `{smiles_input}`")
+          # --- Scoring Section ---
+        st.subheader("Baseline Descriptor Scores")
+
+        try:
+            scores = get_all_scores(smiles_input)
+            st.table(scores.items())
+        except ValueError as e:
+            st.error(str(e))
+
     else:
         st.error("❌ Invalid SMILES. Please check your input.")
