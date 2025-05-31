@@ -6,3 +6,6 @@ transformers
 requests
 pillow
 pytest
+openai
+python-dotenv
+torch
