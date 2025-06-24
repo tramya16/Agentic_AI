@@ -1,21 +1,12 @@
-from crew.crew_setup import run_molecular_parser
+from crew.coordinator import run_molecular_pipeline
 
 if __name__ == "__main__":
-    user_input = "Generate a new molecule similar to aspirin CC(=O)OC1=CC=CC=C1C(=O)O with low toxicity and high solubility"
+    user_input = "Design a molecule similar to albuterol while preserving key functional groups."
 
-    print("=" * 80)
-    print("Starting Molecular Design Pipeline")
-    print("=" * 80)
-    print(f"User Request: {user_input}\n")
+    print("Running full pipeline...\n")
+    results = run_molecular_pipeline(user_input)
 
-    try:
-        result = run_molecular_parser(user_input)
-        print("\n" + "=" * 80)
-        print("Parsing Result:")
-        print("=" * 80)
-        print(result)
-    except Exception as e:
-        print(f"Pipeline Error: {e}")
-        import traceback
-
-        traceback.print_exc()
+    print("\n===== Final Results =====")
+    for key, val in results.items():
+        print(f"\n--- {key.upper()} ---")
+        print(val)
