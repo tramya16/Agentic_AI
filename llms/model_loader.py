@@ -7,20 +7,30 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
 load_dotenv()
-
-def load_llm(model_name: str = None) -> LLM:
+SEED=16
+def load_llm(model_name: str = None, seed: int | None = None,
+             temperature: float = 0.9) -> LLM:
     """
     Load an LLM based on environment variables or explicit model name.
     Supports 'gemini', 'deepseek' etc.
     """
+
     model_name = model_name or os.getenv("DEFAULT_LLM", "gemini")
+
+    common_kwargs = {"temperature": temperature}
+    if seed is not None:
+        common_kwargs["seed"] = seed          # litellm supports this
 
     if model_name == "gemini":
         print("Loading Gemini")
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment.")
-        return LLM(model="gemini/gemini-1.5-pro", api_key=api_key)
+        return LLM(
+            model="gemini/gemini-1.5-pro",
+            api_key=api_key,
+            **common_kwargs
+        )
 
     elif model_name == "ollama":
         print("Loading ollama/llama3.2")

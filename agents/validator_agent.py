@@ -1,84 +1,57 @@
+# agents/validator_agent.py
+
 from crewai import Agent, Task
 from llms.model_loader import load_llm
-from tools.tool_registry import ALL_TOOLS
+from tools.tool_registry import ALL_TOOLS_FLAT
+import json
 
-
-def create_validator_agent():
-    llm = load_llm()
-
-    # Use minimal essential tools
-    validator_tools = (
-            ALL_TOOLS.get('validation', []) +
-            ALL_TOOLS.get('descriptors', [])[:2] +  # Only first 2 descriptor tools
-            ALL_TOOLS.get('drug_likeness_and_safety', [])[:2]  # Only first 2 safety tools
-    )
-
+def create_validator_agent(llm_seed: int | None = None):
+    llm = load_llm(seed=llm_seed)
     return Agent(
-        role='Molecular Validator',
-        goal='Efficiently validate molecules with essential checks only',
-        backstory='Quality control specialist focused on critical validation metrics.',
-        tools=validator_tools,
-        verbose=False,
+        role="Molecule Validator",
+        goal="Validate molecular structures and filter out invalid/duplicate molecules.",
+        backstory="""
+You are a computational chemistry expert that validates molecular structures.
+
+Your job is simple:
+1. Check each SMILES string for validity
+2. Remove duplicates (using canonical SMILES)
+3. Apply basic safety filters
+4. Return clean valid and invalid SMILES lists
+
+Keep it simple and efficient.
+""",
+        tools=ALL_TOOLS_FLAT,
+        verbose=True,
         llm=llm,
         allow_delegation=False
     )
 
 
-def create_validation_task(candidates: list, parsed_spec: dict, agent):
+def create_validation_task(candidates: list, parsed_spec: str, agent: Agent):
     return Task(
         description=f"""
-Validate these molecules efficiently:
+Validate this list of {len(candidates)} candidate molecules:
 
-CANDIDATES: {candidates[:10]}  # Limit to first 10
-SPEC: {parsed_spec}
+{json.dumps(candidates)}
 
-STREAMLINED VALIDATION:
-1. **SMILES Validation** - Check each with SmilesValidatorTool
-2. **Basic Properties** - Calculate MW, logP, TPSA
-3. **Drug-likeness** - Quick Lipinski check
-4. **Constraint Check** - Verify spec requirements
+Use the available tools to:
+1. Check SMILES validity with smiles_validator
+2. Remove duplicates using canonical SMILES
+3. Filter out obviously problematic molecules
 
-SCORING (0-1 scale):
-- structural_valid: SMILES validity
-- property_score: Meets property targets
-- overall_score: Average of above
+Return a clean JSON with two lists:
+- "valid": list of valid SMILES strings
+- "invalid": list of invalid SMILES strings
 
-ERROR HANDLING:
-- Skip failed tools, continue validation
-- Use fallback scoring if tools fail
-- Limit tool calls to essential ones
-
-OUTPUT JSON:
+Example output:
 {{
-  "validated_candidates": [
-    {{
-      "smiles": "canonical_smiles",
-      "valid": true,
-      "scores": {{
-        "structural_valid": 1.0,
-        "property_score": 0.8,
-        "overall_score": 0.9
-      }},
-      "properties": {{
-        "MW": 234.5,
-        "logP": 2.1
-      }},
-      "issues": []
-    }}
-  ],
-  "summary": {{
-    "total": 5,
-    "valid": 4,
-    "avg_score": 0.75
-  }}
+  "valid": ["CC(C)CC1=CC=C(C=C1)C(C)C(=O)O", "CCO"],
+  "invalid": ["invalid_smiles_here", "duplicate_smiles"]
 }}
 
-EFFICIENCY RULES:
-- Process max 10 candidates
-- Use 3-5 tools maximum per molecule
-- Fail fast on invalid SMILES
-- Provide concise output
+Keep it simple - just return the SMILES strings in the appropriate lists.
 """,
         agent=agent,
-        expected_output='Efficient JSON validation report'
+        expected_output="JSON object with 'valid' and 'invalid' lists containing SMILES strings only."
     )
