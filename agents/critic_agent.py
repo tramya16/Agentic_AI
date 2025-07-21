@@ -2,66 +2,62 @@
 
 from crewai import Agent, Task
 import json
-
 from llms.model_loader import load_llm
+from tools.tool_registry import CRITIC_TOOLS
 
 
 def create_critic_agent(llm_seed: int | None = None):
     llm = load_llm(seed=llm_seed)
     return Agent(
         role="Molecule Critic",
-        goal="Evaluate and rank validated molecules based on specifications",
-        backstory="You are a medicinal chemistry expert who evaluates molecules for drug discovery and ranks them by desirability.",
-        tools=[],
+        goal="Evaluate validated molecules and provide actionable feedback for iterative improvement",
+        backstory="""You are a medicinal chemistry expert who evaluates molecules and provides actionable feedback 
+        for iterative improvement. You identify specific weaknesses and provide concrete suggestions for the next 
+        iteration of molecular design.""",
+        tools=CRITIC_TOOLS,
         verbose=True,
         llm=llm,
         allow_delegation=False
     )
 
 
-def create_critic_task(validated_molecules, generation_context, original_spec, agent):
+def create_critic_task(validated_molecules, generation_context, parsed_spec, agent):
     return Task(
         description=f"""
-        Evaluate and rank the following validated molecules with their generation context:
+Evaluate molecules and provide ACTIONABLE feedback:
 
-        Validated Molecules: {validated_molecules}
+Validated: {validated_molecules}
+Context: {generation_context}
+Spec: {parsed_spec}
 
-        Generation Context: {generation_context}
+Use tools to calculate properties and provide specific, actionable feedback.
 
-        Original Specification: {original_spec}
+Return EXACT JSON format:
+{{
+  "ranked": [
+    {{
+      "smiles": "SMILES_STRING",
+      "score": 0.75,
+      "rank": 1,
+      "properties": {{"MW": 250.3, "logP": 2.1}},
+      "strengths": ["good_drug_likeness", "novel_scaffold"],
+      "weaknesses": ["low_target_similarity"],
+      "recommendation": "Specific improvement suggestion"
+    }}
+  ],
+  "summary": "Brief overall assessment",
+  "top_recommendation": "Best molecule and why",
+  "generation_feedback": "SPECIFIC actionable feedback: Increase similarity to target by adding hydroxyl groups. Reduce molecular weight by replacing tert-butyl with methyl. Improve selectivity by modifying aromatic substitution pattern.",
+  "key_improvements_needed": ["improve_target_similarity", "reduce_MW"],
+  "specific_suggestions": [
+    "Add hydroxyl group at position X",
+    "Replace bulky substituent Y with smaller group Z",
+    "Modify ring system for better binding"
+  ]
+}}
 
-        Evaluate each molecule considering:
-        1. Compliance with original requirements and constraints
-        2. Quality of design reasoning and modifications made
-        3. Drug-likeness properties (MW, logP, etc.)
-        4. Synthetic accessibility and feasibility
-        5. Novelty and potential for improved selectivity
-        6. Expected improvements vs. actual molecular properties
-
-        Rank molecules based on overall potential, giving higher scores to:
-        - Molecules with sound design rationale
-        - Better compliance with constraints
-        - Optimal drug-like properties
-        - Realistic synthetic accessibility
-        - Novel structural features that address the requirements
-
-        Return ONLY a compact JSON object:
-        {{
-          "ranked": [
-            {{
-              "smiles": "SMILES_STRING",
-              "score": 0.85,
-              "rank": 1,
-              "strengths": ["strength1", "strength2"],
-              "weaknesses": ["weakness1"],
-              "recommendation": "Brief recommendation for this molecule"
-            }},
-            ...
-          ],
-          "summary": "Overall ranking rationale and key insights",
-          "top_recommendation": "Detailed recommendation for the best candidate"
-        }}
-        """,
+Make feedback SPECIFIC and ACTIONABLE for next iteration.
+""",
         agent=agent,
-        expected_output="JSON object with ranked molecules and detailed evaluation"
+        expected_output="JSON with ranked molecules and specific improvement feedback"
     )

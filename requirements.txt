@@ -1,8 +1,7 @@
 numpy<2
 rdkit~=2025.3.3
 streamlit
-crewai~=0.140.0
-crewai_tools
+crewai
 transformers~=4.53.1
 requests~=2.32.4
 pillow
@@ -19,3 +18,5 @@ deepchem
 adme-py
 wikipedia
 pytest-asyncio
+seaborn
+matplotlib
