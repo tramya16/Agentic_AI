@@ -2,31 +2,22 @@
 
 IMPROVED_PMO_QUERIES = {
     "albuterol_similarity": {
-        "prompt": """Design molecules similar to albuterol (salbutamol) while preserving key functional groups.
-
+        "prompt": """Design molecules similar to albuterol (SMILES:CC(C)(C)NCC(C1=CC(=C(C=C1)O)CO)O) while preserving key functional groups.
 Target molecule: Albuterol
-SMILES: CC(C)(C)NCC(c1ccc(c(c1)CO)O)O
-Key features: Beta-2 agonist, bronchodilator, phenolic hydroxyl groups, secondary amine
-
-Requirements:
-- Maintain similarity to albuterol structure
-- Preserve beta-agonist pharmacophore
-- Keep drug-like properties
-- Tanimoto similarity > 0.6 to target
-
+- SMILES: CC(C)(C)NCC(C1=CC(=C(C=C1)O)CO)O
+- canonical SMILES: CC(C)(C)NCC(O)c1ccc(O)c(CO)c1
+Preserve the core scaffold and key functional groups.
 Example modifications:
 - Modify alkyl substituents on nitrogen
 - Vary hydroxyl group positions
 - Introduce bioisosteric replacements""",
-        "target_smiles": "CC(C)(C)NCC(c1ccc(c(c1)CO)O)O",
-        "similarity_threshold": 0.6
     },
 
     "amlodipine_mpo": {
         "prompt": """Generate molecules similar to amlodipine with optimized drug-like properties.
 
 Target molecule: Amlodipine
-SMILES: CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C
+SMILES: Clc1ccccc1C2C(=C(/N/C(=C2/C(=O)OCC)COCCN)C)\C(=O)OC
 Key features: Calcium channel blocker, dihydropyridine core, 3-ring topology
 
 Multi-parameter optimization targets:
@@ -48,10 +39,11 @@ Example modifications:
         "prompt": """Recreate or design molecules similar to the anti-inflammatory drug celecoxib.
 
 Target molecule: Celecoxib  
-SMILES: Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1
+SMILES: CC1=CC=C(C=C1)C2=CC(=NN2C3=CC=C(C=C3)S(=O)(=O)N)C(F)(F)F
 Key features: COX-2 selective inhibitor, pyrazole core, sulfonamide group, trifluoromethyl
 
 Requirements:
+- Preserve the core scaffold and important pharmacophores
 - Anti-inflammatory activity
 - COX-2 selectivity preferred
 - Maintain core pyrazole-sulfonamide structure

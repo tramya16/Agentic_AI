@@ -1,5 +1,5 @@
 numpy<2
-rdkit~=2025.3.3
+rdkit
 streamlit
 crewai
 transformers~=4.53.1
@@ -9,7 +9,6 @@ pubchempy
 pytest
 openai
 python-dotenv~=1.1.1
-torch~=2.7.1
 pydantic~=2.11.7
 smilite
 selfies
@@ -20,3 +19,4 @@ wikipedia
 pytest-asyncio
 seaborn
 matplotlib
+pyTDC

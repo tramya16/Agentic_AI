@@ -705,13 +705,14 @@ if __name__ == "__main__":
     # Run improved experiment
     experiment = ExperimentOne()
 
-    test_queries = ["albuterol_similarity"]
+    test_queries = ["albuterol_similarity","amlodipine_mpo",
+                    "celecoxib_rediscovery","isomers_c7h8n2o2","drd2_binding"]
 
     try:
         print("🚀 Starting comprehensive molecular generation experiment...")
         results, analyses = experiment.run_comprehensive_experiment(
             query_names=test_queries,
-            runs=3  # 3 runs per query for testing
+            runs=3
         )
         print("\n🎉 Comprehensive experiment completed successfully!")
         print(f"📊 Results saved in: {experiment.results_dir}")

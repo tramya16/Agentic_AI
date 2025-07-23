@@ -1,18 +1,15 @@
-# agents/parser_agent.py
-
 from crewai import Agent, Task
-
 from llms.model_loader import load_llm
 from tools.tool_registry import PARSER_TOOLS
-import json
-
 
 def create_parser_agent(llm_seed: int | None = None):
     llm = load_llm(seed=llm_seed)
     return Agent(
-        role="Query Parser",
-        goal="Parse user queries into structured specifications for molecular design",
-        backstory="You are an expert in understanding molecular design requests and converting them into structured data.",
+        role="Molecular Query Analyst",
+        goal="Parse molecular design queries into comprehensive, actionable specifications for drug discovery",
+        backstory="""You are a senior computational medicinal chemist with expertise in structure-based 
+        drug design. You excel at translating complex molecular design requests into structured 
+        specifications that capture pharmacophore requirements, SAR insights, and optimization objectives.""",
         tools=PARSER_TOOLS,
         verbose=True,
         llm=llm,
@@ -23,21 +20,48 @@ def create_parser_agent(llm_seed: int | None = None):
 def create_parsing_task(user_input: str, agent: Agent):
     return Task(
         description=f"""
-        Parse the following user query into a structured JSON specification:
-
+        Parse this molecular design query into structured JSON:
         User Query: {user_input}
 
-        Extract and structure the following information:
-        - target_molecules: List of SMILES strings or molecule names mentioned
-        - properties: Dictionary of desired properties (e.g., logP, MW, solubility)
-        - constraints: List of constraints or requirements
-        - task_type: One of ["generation", "optimization", "analysis"]
-        - similarity_threshold: Float between 0-1 if similarity is mentioned
+        Extract key information:
+        1. Target molecules (SMILES or names)
+        2. Design objectives
+        3. Structural requirements
+        4. Property constraints
+        5. Biological context
+        6. Similarity requirements
 
-        Return ONLY a compact JSON object with the parsed specification.
-        Example output:
-        {{"target_molecules": ["CCO"], "properties": {{"MW": "<300"}}, "constraints": ["drug-like"], "task_type": "generation"}}
+        Return JSON with this structure:
+        {{
+          "target_molecules": ["SMILES_or_names"],
+          "task_type": "similarity_search|optimization|scaffold_hopping",
+          "design_objectives": ["primary_goal", "secondary_goals"],
+          "structural_requirements": {{
+            "core_scaffold": "description",
+            "essential_groups": ["group1", "group2"],
+            "pharmacophore": ["feature1", "feature2"]
+          }},
+          "properties": {{
+            "MW": "range_or_target",
+            "logP": "range_or_target",
+            "TPSA": "range_or_target"
+          }},
+          "biological_context": {{
+            "target_protein": "protein_name",
+            "activity_type": "binding|inhibition|agonism",
+            "therapeutic_area": "indication"
+          }},
+          "similarity_requirements": {{
+            "reference_molecules": ["SMILES"],
+            "similarity_threshold": 0.6,
+            "similarity_type": "tanimoto"
+          }},
+          "constraints": ["drug_like", "specific_constraints"],
+          "modification_strategy": ["specific_changes_requested"],
+          "design_rationale": "context_and_reasoning",
+          "success_criteria": ["evaluation_metrics"]
+        }}
         """,
         agent=agent,
-        expected_output="A compact JSON object containing the parsed specification"
+        expected_output="Structured JSON specification for molecular design"
     )
