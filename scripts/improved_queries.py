@@ -1,135 +1,109 @@
-# improved_queries.py
+# simplified_queries.py
+
+from rdkit import Chem
 
 IMPROVED_PMO_QUERIES = {
     "albuterol_similarity": {
-        "prompt": """Design molecules similar to albuterol (SMILES:CC(C)(C)NCC(C1=CC(=C(C=C1)O)CO)O) while preserving key functional groups.
-Target molecule: Albuterol
-- SMILES: CC(C)(C)NCC(C1=CC(=C(C=C1)O)CO)O
-- canonical SMILES: CC(C)(C)NCC(O)c1ccc(O)c(CO)c1
-Preserve the core scaffold and key functional groups.
-Example modifications:
-- Modify alkyl substituents on nitrogen
-- Vary hydroxyl group positions
-- Introduce bioisosteric replacements""",
+        "prompt": """Design molecules similar to albuterol while preserving key functional groups.
+
+Target: Albuterol (CC(C)(C)NCC(O)c1ccc(O)c(CO)c1)
+- Beta-2 agonist for asthma
+- Key features: tert-butyl group, beta-hydroxyl, catechol pattern, benzyl alcohol
+
+Requirements:
+- Keep the core pharmacophore
+- Maintain drug-like properties
+- Don't copy albuterol exactly
+
+Example changes:
+- Modify alkyl groups on nitrogen
+- Change hydroxyl positions
+- Replace with bioisosteres""",
+        "target_smiles": "CC(C)(C)NCC(O)c1ccc(O)c(CO)c1"
     },
 
     "amlodipine_mpo": {
-        "prompt": """Generate molecules similar to amlodipine with optimized drug-like properties.
+        "prompt": """Generate amlodipine-like molecules with good drug properties.
 
-Target molecule: Amlodipine
-SMILES: Clc1ccccc1C2C(=C(/N/C(=C2/C(=O)OCC)COCCN)C)\C(=O)OC
-Key features: Calcium channel blocker, dihydropyridine core, 3-ring topology
+Target: Amlodipine (CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C)
+- Calcium channel blocker
+- Keep dihydropyridine core and 3 rings
+- Optimize MW (300-450), LogP (2-4), TPSA (60-90)
 
-Multi-parameter optimization targets:
-- Molecular weight: 300-450 Da
-- LogP: 2-4
-- TPSA: 60-90 Ų
-- Maintain 3-ring system topology
-- Good oral bioavailability
-
-Example modifications:
+Example changes:
 - Vary ester groups
-- Modify dihydropyridine substituents  
-- Replace chlorophenyl with other aromatics""",
-        "target_smiles": "CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C",
-        "properties": {"MW": "300-450", "logP": "2-4", "TPSA": "60-90"}
+- Replace chlorophenyl
+- Modify side chains""",
+        "target_smiles": "CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C"
     },
 
     "celecoxib_rediscovery": {
-        "prompt": """Recreate or design molecules similar to the anti-inflammatory drug celecoxib.
+        "prompt": """Design celecoxib-like COX-2 inhibitors.
 
-Target molecule: Celecoxib  
-SMILES: CC1=CC=C(C=C1)C2=CC(=NN2C3=CC=C(C=C3)S(=O)(=O)N)C(F)(F)F
-Key features: COX-2 selective inhibitor, pyrazole core, sulfonamide group, trifluoromethyl
+Target: Celecoxib (Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1)
+- COX-2 selective inhibitor
+- Keep pyrazole core, sulfonamide, trifluoromethyl
+- Maintain anti-inflammatory activity
 
-Requirements:
-- Preserve the core scaffold and important pharmacophores
-- Anti-inflammatory activity
-- COX-2 selectivity preferred
-- Maintain core pyrazole-sulfonamide structure
-- Good drug-like properties
-
-Example modifications:
+Example changes:
 - Vary aromatic substituents
-- Modify trifluoromethyl group
-- Replace sulfonamide with bioisosteres
-- Adjust pyrazole substitution pattern""",
-        "target_smiles": "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1",
-        "activity": "COX-2_inhibition"
+- Replace trifluoromethyl group
+- Modify sulfonamide""",
+        "target_smiles": "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1"
     },
 
     "isomers_c7h8n2o2": {
-        "prompt": """Generate molecules that are exact isomers of the molecular formula C7H8N2O2.
+        "prompt": """Generate molecules with exact formula C7H8N2O2.
 
-Molecular formula: C7H8N2O2
-Molecular weight: 152.15 Da
-Atom counts: C=7, H=8, N=2, O=2
+HARD CONSTRAINT: Must have exactly 7C, 8H, 2N, 2O atoms.
 
-Requirements:
-- EXACT molecular formula match: C7H8N2O2
-- Valid chemical structure
-- Reasonable stability
-- No additional or missing atoms
+Common patterns:
+- Aromatic amines with functional groups  
+- Nitroaromatic compounds
+- Aminobenzoic acid derivatives
 
-Example structures with C7H8N2O2:
-- 4-nitroaniline derivatives
-- Aminobenzoic acid derivatives  
-- Pyrimidine carboxylic acids
-- Imidazole derivatives
-
-Validation: Generated molecules must have exactly 7 carbons, 8 hydrogens, 2 nitrogens, and 2 oxygens.""",
-        "molecular_formula": "C7H8N2O2",
-        "exact_mass": 152.15
+Strategy: Start with benzene ring + add remaining atoms as functional groups.""",
+        "molecular_formula": "C7H8N2O2"
     },
 
     "drd2_binding": {
-        "prompt": """Design molecules predicted to bind strongly to the dopamine D2 receptor.
+        "prompt": """Design molecules that bind strongly to dopamine D2 receptor.
 
-Target: Dopamine D2 receptor
-Binding mode: Antagonist or partial agonist preferred
-Reference compounds: Haloperidol, risperidone, aripiprazole
+Target: High DRD2 binding affinity
+- Need basic nitrogen, aromatic rings, proper linker
+- CNS drug-like properties (MW<450, LogP 2-5)
+- Reference: haloperidol, risperidone, aripiprazole
 
-Key pharmacophore features:
-- Basic nitrogen (protonatable at physiological pH)
-- Aromatic ring system
-- Appropriate linker length (3-4 atoms)
-- Lipophilic aromatic region
-
-Requirements:
-- High predicted D2 binding affinity
-- CNS drug-like properties
-- Blood-brain barrier penetration
-- Avoid excessive lipophilicity (LogP < 5)
-
-Example scaffolds:
-- Benzisoxazole derivatives
-- Butyrophenone analogs  
-- Quinolinone derivatives
-- Phenothiazine-like structures""",
-        "target_protein": "DRD2",
-        "activity_type": "binding_affinity",
-        "properties": {"CNS_MPO": ">4", "logP": "<5", "MW": "<450"}
+Key features:
+- Basic nitrogen (protonatable)
+- Aromatic system
+- 3-4 atom linker
+- Avoid toxicity""",
+        "target_protein": "DRD2"
     }
 }
 
-
-def get_improved_query_list():
-    """Return list of improved query names"""
+def get_query_list():
+    """Get list of available queries"""
     return list(IMPROVED_PMO_QUERIES.keys())
 
+def get_query_prompt(query_name):
+    """Get prompt for a query"""
+    return IMPROVED_PMO_QUERIES.get(query_name, {}).get("prompt", "")
 
-def get_improved_query_data(query_name):
-    """Get complete query data including prompt, SMILES, and metadata"""
+def get_query_data(query_name):
+    """Get all data for a query"""
     return IMPROVED_PMO_QUERIES.get(query_name, {})
 
+def validate_smiles():
+    """Check if SMILES are valid"""
+    for name, data in IMPROVED_PMO_QUERIES.items():
+        if "target_smiles" in data:
+            mol = Chem.MolFromSmiles(data["target_smiles"])
+            status = "✅" if mol else "❌"
+            print(f"{name}: {status}")
 
-def get_improved_query_prompt(query_name):
-    """Get improved prompt for a specific query"""
-    query_data = IMPROVED_PMO_QUERIES.get(query_name, {})
-    return query_data.get("prompt", "")
-
-
-# Add this function to improved_queries.py
-def get_query_list():
-    """Backward compatibility function"""
-    return get_improved_query_list()
+if __name__ == "__main__":
+    print("Available queries:", get_query_list())
+    print("\nSMILES validation:")
+    validate_smiles()
