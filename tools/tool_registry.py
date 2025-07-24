@@ -24,6 +24,8 @@ from tools.scaffold_extraction_tool import ScaffoldExtractionTool
 from tools.selfies_converter_tool import SelfiesConverterTool
 from tools.wikipedia_search_tool import WikipediaSearchTool
 from tools.calculate_synthetic_accessibility import CalculateSA
+from tools.molecular_formula_tool import MolecularFormulaValidatorTool
+from tools.smarts_pattern_tool import SmartsPatternTool
 
 # --- Agent-Specific Tool Sets ---
 
@@ -44,6 +46,8 @@ GENERATOR_TOOLS = [
     CanonicalSmilesTool(),
     SmilesValidatorTool(),
     ScaffoldExtractionTool(),
+    MolecularFormulaValidatorTool(),
+    SmartsPatternTool(),
 ]
 
 VALIDATOR_TOOLS = [
@@ -54,6 +58,8 @@ VALIDATOR_TOOLS = [
     ToxicityCheckTool(),
     PatentCheckTool(),
     ComplexityCalculatorTool(),
+    MolecularFormulaValidatorTool(),
+    SmartsPatternTool(),
 ]
 
 CRITIC_TOOLS = [

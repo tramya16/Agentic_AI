@@ -4,14 +4,14 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from pipeline_runner import PipelineRunner
-from improved_queries import get_improved_query_list, get_improved_query_data, get_improved_query_prompt
+from improved_queries import get_query_data,get_query_list
 from molecular_metrics import MolecularMetrics, MetricsVisualizer
 import matplotlib.pyplot as plt
 import os
 
 
 class ExperimentOne:
-    def __init__(self, results_dir="improved_experiment_results"):
+    def __init__(self, results_dir="experiment_results"):
         self.results_dir = Path(results_dir)
         # Ensure directory exists with proper permissions
         self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -469,7 +469,7 @@ class ExperimentOne:
     def run_comprehensive_experiment(self, query_names=None, runs=3, top_n=5):
         """Run comprehensive experiment with metrics and visualizations"""
         if query_names is None:
-            query_names = get_improved_query_list()[:5]  # First 5 queries as requested
+            query_names = get_query_list()[:5]  # First 5 queries as requested
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         all_results = []
@@ -487,7 +487,7 @@ class ExperimentOne:
             print(f"{'=' * 60}")
 
             try:
-                query_data = get_improved_query_data(query_name)
+                query_data = get_query_data(query_name)
 
                 # Run experiment
                 experiment_results = self.run_single_query_experiment(
@@ -705,8 +705,7 @@ if __name__ == "__main__":
     # Run improved experiment
     experiment = ExperimentOne()
 
-    test_queries = ["albuterol_similarity","amlodipine_mpo",
-                    "celecoxib_rediscovery","isomers_c7h8n2o2","drd2_binding"]
+    test_queries =get_query_list()
 
     try:
         print("🚀 Starting comprehensive molecular generation experiment...")
