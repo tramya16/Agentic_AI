@@ -9,7 +9,7 @@ class DrugLikenessInput(BaseModel):
 
 class DrugLikenessValidatorTool(BaseTool):
     name: str = "drug_likeness_validator"
-    description: str = "Evaluate molecule using Lipinski, Veber, and PAINS filters"
+    description: str = "Evaluate molecule using Lipinski and Veber filters"
     args_schema: Type[BaseModel] = DrugLikenessInput
 
     def _run(self, smiles: str) -> str:

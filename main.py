@@ -1,4 +1,7 @@
+# generalized_oracle_evaluation.py
+
 import json
+import numpy as np
 from pathlib import Path
 from collections import defaultdict
 from tdc import Oracle
@@ -7,339 +10,562 @@ from rdkit.Chem import Descriptors, Crippen
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from sklearn.metrics import auc
+import warnings
+
+warnings.filterwarnings('ignore')
+
+# Oracle mapping for each query type
+ORACLE_MAPPING = {
+    "albuterol_similarity": "Albuterol_similarity",
+    "amlodipine_mpo": "Amlodipine_MPO",
+    "celecoxib_rediscovery": "Celecoxib_rediscovery",
+    "isomers_c7h8n2o2": "Isomers_C7H8N2O2",
+    "drd2_binding": "DRD2"
+}
 
 
-def extract_smiles_from_file(file_path):
-    """Extract SMILES from a single JSON file"""
-    with open(file_path, 'r') as f:
-        data = json.load(f)
+class OracleEvaluator:
+    def __init__(self, results_dir="improved_experiment_results"):
+        self.results_dir = Path(results_dir)
+        self.oracles = {}
+        self.load_oracles()
 
-    single_shot_smiles = []
-    iterative_smiles = []
-
-    # Single-shot extractions
-    for run in data.get("single_shot", []):
-        smiles = run.get("result", {}).get("valid", [])
-        single_shot_smiles.extend(smiles)
-
-    # Iterative extractions
-    for run in data.get("iterative", []):
-        smiles = run.get("result", {}).get("valid", [])
-        iterative_smiles.extend(smiles)
-
-    return single_shot_smiles, iterative_smiles
-
-
-def extract_all_smiles_from_dir(directory=".", pattern="*json"):
-    """Extract SMILES from all JSON files in directory"""
-    directory = Path(directory)
-    all_single_shot = defaultdict(list)
-    all_iterative = defaultdict(list)
-
-    for file_path in directory.glob(pattern):
-        if file_path.is_file():
+    def load_oracles(self):
+        """Load all required oracles"""
+        print("🔮 Loading Oracle models...")
+        for query_name, oracle_name in ORACLE_MAPPING.items():
             try:
-                single, iterative = extract_smiles_from_file(file_path)
-                name = file_path.stem  # e.g., albuterol_similarity_20250722_075459
-                all_single_shot[name].extend(single)
-                all_iterative[name].extend(iterative)
-                print(f"✅ Processed {file_path.name}: {len(single)} single-shot, {len(iterative)} iterative")
+                oracle = Oracle(name=oracle_name)
+                self.oracles[query_name] = oracle
+                print(f"✅ Loaded {oracle_name} for {query_name}")
             except Exception as e:
-                print(f"❌ Error processing {file_path.name}: {e}")
+                print(f"❌ Failed to load {oracle_name}: {e}")
+                self.oracles[query_name] = None
 
-    return all_single_shot, all_iterative
+    def extract_experiment_results(self):
+        """Extract results from all experiment files"""
+        print(f"\n📁 Extracting results from {self.results_dir}...")
 
+        all_results = defaultdict(lambda: {"single_shot": [], "iterative": []})
 
-def calculate_molecular_properties(smiles):
-    """Calculate additional molecular properties for analysis"""
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return None
-
-    properties = {
-        'MW': Descriptors.MolWt(mol),
-        'LogP': Crippen.MolLogP(mol),
-        'HBD': Descriptors.NumHDonors(mol),
-        'HBA': Descriptors.NumHAcceptors(mol),
-        'TPSA': Descriptors.TPSA(mol),
-        'RotBonds': Descriptors.NumRotatableBonds(mol)
-    }
-    return properties
-
-
-def score_molecules(smiles_list, pipeline_name, query_name, oracle):
-    """Enhanced function to validate and score SMILES with additional properties"""
-    results = []
-
-    print(f"\nScoring {pipeline_name} molecules from {query_name}:")
-    print("-" * 60)
-
-    for i, smi in enumerate(smiles_list, 1):
-        mol = Chem.MolFromSmiles(smi)
-        if mol is not None:  # Valid SMILES
+        # Look for detailed experiment files
+        for file_path in self.results_dir.glob("*_detailed_*.json"):
             try:
-                score = oracle(smi)
-                props = calculate_molecular_properties(smi)
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
 
-                result = {
-                    'SMILES': smi,
-                    'Score': score,
-                    'Pipeline': pipeline_name,
-                    'Query': query_name,
-                    'Molecule_ID': f"{query_name}_{pipeline_name}_{i}",
-                    **props
+                query_name = data.get("query_name", "unknown")
+                print(f"📄 Processing {file_path.name} for query: {query_name}")
+
+                # Extract single-shot results across all runs
+                for run_data in data.get("single_shot", []):
+                    if run_data.get("result") and not run_data["result"].get("error"):
+                        valid_smiles = run_data["result"].get("valid", [])
+                        if valid_smiles:
+                            all_results[query_name]["single_shot"].append({
+                                "run": run_data.get("run", 1),
+                                "seed": run_data.get("seed", 0),
+                                "smiles": valid_smiles
+                            })
+
+                # Extract iterative results across all runs
+                for run_data in data.get("iterative", []):
+                    if run_data.get("result") and not run_data["result"].get("error"):
+                        valid_smiles = run_data["result"].get("valid", [])
+                        if valid_smiles:
+                            all_results[query_name]["iterative"].append({
+                                "run": run_data.get("run", 1),
+                                "seed": run_data.get("seed", 0),
+                                "smiles": valid_smiles
+                            })
+
+            except Exception as e:
+                print(f"⚠️ Error processing {file_path}: {e}")
+
+        return dict(all_results)
+
+    def calculate_molecular_properties(self, smiles):
+        """Calculate molecular properties"""
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return None
+
+        return {
+            'MW': Descriptors.MolWt(mol),
+            'LogP': Crippen.MolLogP(mol),
+            'HBD': Descriptors.NumHDonors(mol),
+            'HBA': Descriptors.NumHAcceptors(mol),
+            'TPSA': Descriptors.TPSA(mol),
+            'RotBonds': Descriptors.NumRotatableBonds(mol),
+            'AromaticRings': Descriptors.NumAromaticRings(mol)
+        }
+
+    def score_molecules_with_oracle(self, smiles_list, oracle, query_name):
+        """Score molecules using the appropriate oracle"""
+        results = []
+
+        for i, smiles in enumerate(smiles_list):
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is not None:
+                try:
+                    score = oracle(smiles)
+                    props = self.calculate_molecular_properties(smiles)
+
+                    result = {
+                        'SMILES': smiles,
+                        'Oracle_Score': score,
+                        'Query': query_name,
+                        'Molecule_ID': f"{query_name}_{i + 1}",
+                        **props
+                    }
+                    results.append(result)
+
+                except Exception as e:
+                    print(f"⚠️ Error scoring {smiles}: {e}")
+
+        return results
+
+    def calculate_auc_top_k(self, scores, k=10):
+        """Calculate AUC for top-k scoring"""
+        if len(scores) == 0:
+            return 0.0
+
+        # Sort scores in descending order
+        sorted_scores = sorted(scores, reverse=True)
+
+        # Take top-k or all if less than k
+        top_k_scores = sorted_scores[:min(k, len(sorted_scores))]
+
+        if len(top_k_scores) < 2:
+            return np.mean(top_k_scores) if top_k_scores else 0.0
+
+        # Create x-axis (ranks) and calculate AUC
+        x = np.arange(1, len(top_k_scores) + 1)
+        # Normalize x to [0,1] range
+        x_norm = (x - 1) / (len(top_k_scores) - 1) if len(top_k_scores) > 1 else [0]
+
+        try:
+            auc_score = auc(x_norm, top_k_scores)
+            return auc_score
+        except:
+            return np.mean(top_k_scores)
+
+    def evaluate_query_results(self, query_name, query_results):
+        """Evaluate results for a single query across all runs"""
+        if query_name not in self.oracles or self.oracles[query_name] is None:
+            print(f"❌ No oracle available for {query_name}")
+            return None
+
+        oracle = self.oracles[query_name]
+        oracle_name = ORACLE_MAPPING[query_name]
+
+        print(f"\n🎯 Evaluating {query_name} with {oracle_name} oracle")
+        print("=" * 60)
+
+        evaluation_results = {
+            "query_name": query_name,
+            "oracle_name": oracle_name,
+            "single_shot": {"runs": [], "auc_scores": [], "top_10_scores": []},
+            "iterative": {"runs": [], "auc_scores": [], "top_10_scores": []}
+        }
+
+        # Evaluate single-shot runs
+        print(f"📊 Single-shot evaluation ({len(query_results['single_shot'])} runs):")
+        for run_data in query_results["single_shot"]:
+            scored_molecules = self.score_molecules_with_oracle(
+                run_data["smiles"], oracle, query_name
+            )
+
+            if scored_molecules:
+                scores = [mol['Oracle_Score'] for mol in scored_molecules]
+                auc_top_10 = self.calculate_auc_top_k(scores, k=10)
+                top_10_mean = np.mean(sorted(scores, reverse=True)[:10])
+
+                run_result = {
+                    "run": run_data["run"],
+                    "seed": run_data["seed"],
+                    "total_molecules": len(scored_molecules),
+                    "oracle_scores": scores,
+                    "auc_top_10": auc_top_10,
+                    "top_10_mean": top_10_mean,
+                    "max_score": max(scores),
+                    "mean_score": np.mean(scores),
+                    "molecules": scored_molecules
                 }
-                results.append(result)
 
-                print(f"{pipeline_name} {i}: Score = {score:.3f}, MW = {props['MW']:.1f}, LogP = {props['LogP']:.2f}")
+                evaluation_results["single_shot"]["runs"].append(run_result)
+                evaluation_results["single_shot"]["auc_scores"].append(auc_top_10)
+                evaluation_results["single_shot"]["top_10_scores"].append(top_10_mean)
 
-            except Exception as e:
-                print(f"Error scoring {smi}: {e}")
-        else:
-            print(f"Invalid SMILES: {smi}")
+                print(f"  Run {run_data['run']}: {len(scored_molecules)} molecules, "
+                      f"AUC-10: {auc_top_10:.3f}, Top-10 mean: {top_10_mean:.3f}")
 
-    return results
+        # Evaluate iterative runs
+        print(f"📊 Iterative evaluation ({len(query_results['iterative'])} runs):")
+        for run_data in query_results["iterative"]:
+            scored_molecules = self.score_molecules_with_oracle(
+                run_data["smiles"], oracle, query_name
+            )
 
+            if scored_molecules:
+                scores = [mol['Oracle_Score'] for mol in scored_molecules]
+                auc_top_10 = self.calculate_auc_top_k(scores, k=10)
+                top_10_mean = np.mean(sorted(scores, reverse=True)[:10])
 
-def create_comprehensive_visualization(df):
-    """Create comprehensive visualization of results"""
-    if len(df) == 0:
-        print("No valid molecules to visualize!")
-        return
+                run_result = {
+                    "run": run_data["run"],
+                    "seed": run_data["seed"],
+                    "total_molecules": len(scored_molecules),
+                    "oracle_scores": scores,
+                    "auc_top_10": auc_top_10,
+                    "top_10_mean": top_10_mean,
+                    "max_score": max(scores),
+                    "mean_score": np.mean(scores),
+                    "molecules": scored_molecules
+                }
 
-    fig = plt.figure(figsize=(16, 12))
+                evaluation_results["iterative"]["runs"].append(run_result)
+                evaluation_results["iterative"]["auc_scores"].append(auc_top_10)
+                evaluation_results["iterative"]["top_10_scores"].append(top_10_mean)
 
-    # Score comparison by pipeline
-    ax1 = plt.subplot(2, 4, 1)
-    sns.boxplot(data=df, x='Pipeline', y='Score', ax=ax1)
-    ax1.set_title("Oracle: Albuterol Similarity Scores")
-    ax1.set_ylabel("Oracle Similarity Score")
-    ax1.tick_params(axis='x', rotation=45)
-    # Add mean values as text
-    for i, pipeline in enumerate(df['Pipeline'].unique()):
-        mean_score = df[df['Pipeline'] == pipeline]['Score'].mean()
-        ax1.text(i, mean_score, f'{mean_score:.3f}', ha='center', va='bottom')
+                print(f"  Run {run_data['run']}: {len(scored_molecules)} molecules, "
+                      f"AUC-10: {auc_top_10:.3f}, Top-10 mean: {top_10_mean:.3f}")
 
-    # Individual scores
-    ax2 = plt.subplot(2, 4, 2)
-    sns.stripplot(data=df, x='Pipeline', y='Score', size=8, ax=ax2)
-    ax2.set_title("Individual Oracle Scores")
-    ax2.set_ylabel("Oracle Similarity Score")
-    ax2.tick_params(axis='x', rotation=45)
-    # Add horizontal line at median oracle score
-    overall_median = df['Score'].median()
-    ax2.axhline(y=overall_median, color='red', linestyle='--', alpha=0.7, label=f'Overall Median: {overall_median:.3f}')
-    ax2.legend()
+        return evaluation_results
 
-    # Molecular weight distribution
-    ax3 = plt.subplot(2, 4, 3)
-    sns.violinplot(data=df, x='Pipeline', y='MW', ax=ax3)
-    ax3.set_title("Molecular Weight Distribution")
-    ax3.set_ylabel("Molecular Weight (Da)")
-    ax3.tick_params(axis='x', rotation=45)
+    def create_comprehensive_plots(self, all_evaluations):
+        """Create comprehensive visualization plots"""
+        print("\n📊 Creating comprehensive visualizations...")
 
-    # LogP distribution
-    ax4 = plt.subplot(2, 4, 4)
-    sns.violinplot(data=df, x='Pipeline', y='LogP', ax=ax4)
-    ax4.set_title("LogP Distribution")
-    ax4.set_ylabel("LogP")
-    ax4.tick_params(axis='x', rotation=45)
+        # Prepare data for plotting
+        plot_data = []
+        auc_summary_data = []
 
-    # TPSA distribution
-    ax5 = plt.subplot(2, 4, 5)
-    sns.violinplot(data=df, x='Pipeline', y='TPSA', ax=ax5)
-    ax5.set_title("TPSA Distribution")
-    ax5.set_ylabel("TPSA (Ų)")
-    ax5.tick_params(axis='x', rotation=45)
+        for query_name, eval_data in all_evaluations.items():
+            if eval_data is None:
+                continue
 
-    # Score vs LogP scatter
-    ax6 = plt.subplot(2, 4, 6)
-    for pipeline in df['Pipeline'].unique():
-        subset = df[df['Pipeline'] == pipeline]
-        ax6.scatter(subset['LogP'], subset['Score'], label=pipeline, alpha=0.7, s=60)
-    ax6.set_xlabel("LogP")
-    ax6.set_ylabel("Oracle Similarity Score")
-    ax6.set_title("Oracle Score vs LogP")
-    ax6.legend()
-    # Add correlation coefficient
-    corr = df['LogP'].corr(df['Score'])
-    ax6.text(0.05, 0.95, f'Correlation: {corr:.3f}', transform=ax6.transAxes,
-             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            # Single-shot data
+            for run in eval_data["single_shot"]["runs"]:
+                for mol in run["molecules"]:
+                    plot_data.append({
+                        'Query': query_name,
+                        'Pipeline': 'Single-shot',
+                        'Run': run["run"],
+                        'Oracle_Score': mol['Oracle_Score'],
+                        'MW': mol['MW'],
+                        'LogP': mol['LogP'],
+                        'TPSA': mol['TPSA']
+                    })
 
-    # Query comparison (if multiple queries)
-    if len(df['Query'].unique()) > 1:
-        ax7 = plt.subplot(2, 4, 7)
-        sns.boxplot(data=df, x='Query', y='Score', ax=ax7)
-        ax7.set_title("Oracle Scores by Query")
-        ax7.set_ylabel("Oracle Similarity Score")
-        ax7.tick_params(axis='x', rotation=45)
-        # Add best scoring query annotation
-        query_means = df.groupby('Query')['Score'].mean()
-        best_query = query_means.idxmax()
-        best_score = query_means.max()
-        ax7.text(0.5, 0.95, f'Best Query: {best_query}\nMean Score: {best_score:.3f}',
-                 transform=ax7.transAxes, ha='center', va='top',
-                 bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
+            # Iterative data
+            for run in eval_data["iterative"]["runs"]:
+                for mol in run["molecules"]:
+                    plot_data.append({
+                        'Query': query_name,
+                        'Pipeline': 'Iterative',
+                        'Run': run["run"],
+                        'Oracle_Score': mol['Oracle_Score'],
+                        'MW': mol['MW'],
+                        'LogP': mol['LogP'],
+                        'TPSA': mol['TPSA']
+                    })
 
-    # Molecules per query/pipeline
-    ax8 = plt.subplot(2, 4, 8)
-    query_pipeline_counts = df.groupby(['Query', 'Pipeline']).size().unstack(fill_value=0)
-    query_pipeline_counts.plot(kind='bar', ax=ax8)
-    ax8.set_title("Molecules per Query/Pipeline")
-    ax8.set_ylabel("Number of Molecules")
-    ax8.tick_params(axis='x', rotation=45)
-    ax8.legend(title='Pipeline')
+            # AUC summary data
+            if eval_data["single_shot"]["auc_scores"]:
+                auc_summary_data.append({
+                    'Query': query_name,
+                    'Pipeline': 'Single-shot',
+                    'AUC_Top10_Mean': np.mean(eval_data["single_shot"]["auc_scores"]),
+                    'AUC_Top10_Std': np.std(eval_data["single_shot"]["auc_scores"]),
+                    'N_Runs': len(eval_data["single_shot"]["auc_scores"])
+                })
 
-    plt.tight_layout()
-    plt.show()
+            if eval_data["iterative"]["auc_scores"]:
+                auc_summary_data.append({
+                    'Query': query_name,
+                    'Pipeline': 'Iterative',
+                    'AUC_Top10_Mean': np.mean(eval_data["iterative"]["auc_scores"]),
+                    'AUC_Top10_Std': np.std(eval_data["iterative"]["auc_scores"]),
+                    'N_Runs': len(eval_data["iterative"]["auc_scores"])
+                })
 
+        if not plot_data:
+            print("❌ No data available for plotting")
+            return
 
-def print_comprehensive_analysis(df):
-    """Print comprehensive analysis results"""
-    print("\n" + "=" * 80)
-    print("COMPREHENSIVE ANALYSIS RESULTS")
-    print("=" * 80)
+        df = pd.DataFrame(plot_data)
+        auc_df = pd.DataFrame(auc_summary_data)
 
-    print(f"\nTotal molecules analyzed: {len(df)}")
-    print(f"Queries: {', '.join(df['Query'].unique())}")
-    print(f"Pipelines: {', '.join(df['Pipeline'].unique())}")
+        # Create comprehensive plot
+        fig = plt.figure(figsize=(20, 15))
 
-    print("\nAlbuterol Similarity Oracle Score Statistics:")
-    score_stats = df.groupby(['Query', 'Pipeline'])['Score'].agg(['count', 'mean', 'std', 'min', 'max']).round(3)
-    print(score_stats)
+        # 1. AUC Top-10 Comparison
+        ax1 = plt.subplot(3, 4, 1)
+        if len(auc_df) > 0:
+            sns.barplot(data=auc_df, x='Query', y='AUC_Top10_Mean', hue='Pipeline', ax=ax1)
+            ax1.set_title("AUC Top-10 by Query and Pipeline")
+            ax1.set_ylabel("AUC Top-10 Score")
+            plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
 
-    print("\nOverall Pipeline Comparison (Oracle Scores):")
-    pipeline_stats = df.groupby('Pipeline')['Score'].agg(['count', 'mean', 'std', 'min', 'max']).round(3)
-    print(pipeline_stats)
+            # Add error bars
+            for i, (_, row) in enumerate(auc_df.iterrows()):
+                x_pos = i % len(auc_df['Query'].unique())
+                if row['Pipeline'] == 'Iterative':
+                    x_pos += 0.2
+                else:
+                    x_pos -= 0.2
+                ax1.errorbar(x_pos, row['AUC_Top10_Mean'], yerr=row['AUC_Top10_Std'],
+                             color='black', capsize=3, alpha=0.7)
 
-    # Highlight best performing pipeline
-    best_pipeline = pipeline_stats['mean'].idxmax()
-    best_mean = pipeline_stats.loc[best_pipeline, 'mean']
-    print(f"\n🏆 BEST PERFORMING PIPELINE: {best_pipeline} (Mean Oracle Score: {best_mean:.3f})")
+        # 2. Oracle Score Distribution by Query
+        ax2 = plt.subplot(3, 4, 2)
+        sns.boxplot(data=df, x='Query', y='Oracle_Score', hue='Pipeline', ax=ax2)
+        ax2.set_title("Oracle Score Distribution")
+        ax2.set_ylabel("Oracle Score")
+        plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
 
-    print("\nMolecular Property Statistics:")
-    property_cols = ['MW', 'LogP', 'HBD', 'HBA', 'TPSA', 'RotBonds']
-    for prop in property_cols:
-        if prop in df.columns:
-            print(f"\n{prop}:")
-            prop_stats = df.groupby('Pipeline')[prop].agg(['mean', 'std']).round(2)
-            print(prop_stats)
+        # 3. Oracle Score vs Molecular Weight
+        ax3 = plt.subplot(3, 4, 3)
+        for pipeline in df['Pipeline'].unique():
+            subset = df[df['Pipeline'] == pipeline]
+            ax3.scatter(subset['MW'], subset['Oracle_Score'],
+                        label=pipeline, alpha=0.6, s=30)
+        ax3.set_xlabel("Molecular Weight (Da)")
+        ax3.set_ylabel("Oracle Score")
+        ax3.set_title("Oracle Score vs Molecular Weight")
+        ax3.legend()
 
-    # Top scoring molecules
-    print("\n" + "=" * 80)
-    print("🏆 TOP 10 MOLECULES BY ORACLE SIMILARITY SCORE")
-    print("=" * 80)
-    top_molecules = df.nlargest(10, 'Score')
-    for rank, (_, row) in enumerate(top_molecules.iterrows(), 1):
-        print(f"\n#{rank} - {row['Molecule_ID']} (Oracle Score: {row['Score']:.3f}):")
-        print(f"  SMILES: {row['SMILES']}")
-        print(f"  Pipeline: {row['Pipeline']}, Query: {row['Query']}")
-        print(f"  MW: {row['MW']:.1f} Da, LogP: {row['LogP']:.2f}")
-        print(f"  HBD: {row['HBD']}, HBA: {row['HBA']}")
-        print(f"  TPSA: {row['TPSA']:.1f} Ų, RotBonds: {row['RotBonds']}")
+        # 4. Oracle Score vs LogP
+        ax4 = plt.subplot(3, 4, 4)
+        for pipeline in df['Pipeline'].unique():
+            subset = df[df['Pipeline'] == pipeline]
+            ax4.scatter(subset['LogP'], subset['Oracle_Score'],
+                        label=pipeline, alpha=0.6, s=30)
+        ax4.set_xlabel("LogP")
+        ax4.set_ylabel("Oracle Score")
+        ax4.set_title("Oracle Score vs LogP")
+        ax4.legend()
 
-    # Oracle score distribution summary
-    print(f"\n📊 ORACLE SCORE DISTRIBUTION SUMMARY:")
-    print(f"  Total molecules scored: {len(df)}")
-    print(f"  Oracle score range: {df['Score'].min():.3f} - {df['Score'].max():.3f}")
-    print(f"  Mean oracle score: {df['Score'].mean():.3f}")
-    print(f"  Median oracle score: {df['Score'].median():.3f}")
-    print(f"  Standard deviation: {df['Score'].std():.3f}")
+        # 5-8. Individual query detailed plots
+        queries = df['Query'].unique()[:4]  # Show up to 4 queries
+        for i, query in enumerate(queries):
+            ax = plt.subplot(3, 4, 5 + i)
+            query_data = df[df['Query'] == query]
+            sns.violinplot(data=query_data, x='Pipeline', y='Oracle_Score', ax=ax)
+            ax.set_title(f"{query}\nOracle Scores")
+            ax.set_ylabel("Oracle Score")
 
-    # High scoring molecules count
-    high_score_threshold = df['Score'].quantile(0.9)  # Top 10%
-    high_scorers = df[df['Score'] >= high_score_threshold]
-    print(f"  High-scoring molecules (top 10%): {len(high_scorers)} molecules (score ≥ {high_score_threshold:.3f})")
+        # 9. Molecules per Pipeline
+        ax9 = plt.subplot(3, 4, 9)
+        pipeline_counts = df.groupby(['Query', 'Pipeline']).size().unstack(fill_value=0)
+        pipeline_counts.plot(kind='bar', ax=ax9)
+        ax9.set_title("Molecules Generated per Pipeline")
+        ax9.set_ylabel("Number of Molecules")
+        plt.setp(ax9.get_xticklabels(), rotation=45, ha='right')
+        ax9.legend(title='Pipeline')
 
+        # 10. Top Scoring Molecules Summary
+        ax10 = plt.subplot(3, 4, 10)
+        top_scores_by_query = df.groupby('Query')['Oracle_Score'].max()
+        top_scores_by_query.plot(kind='bar', ax=ax10, color='skyblue')
+        ax10.set_title("Best Oracle Score per Query")
+        ax10.set_ylabel("Best Oracle Score")
+        plt.setp(ax10.get_xticklabels(), rotation=45, ha='right')
 
-def perform_statistical_analysis(df):
-    """Perform statistical analysis if scipy is available"""
-    try:
-        from scipy import stats
+        # 11. Score Distribution Histogram
+        ax11 = plt.subplot(3, 4, 11)
+        for pipeline in df['Pipeline'].unique():
+            subset = df[df['Pipeline'] == pipeline]
+            ax11.hist(subset['Oracle_Score'], alpha=0.6, label=pipeline, bins=20)
+        ax11.set_xlabel("Oracle Score")
+        ax11.set_ylabel("Frequency")
+        ax11.set_title("Oracle Score Distribution")
+        ax11.legend()
 
-        print(f"\n" + "=" * 80)
-        print("STATISTICAL ANALYSIS")
+        # 12. Run Consistency Analysis
+        ax12 = plt.subplot(3, 4, 12)
+        if len(auc_df) > 0:
+            sns.scatterplot(data=auc_df, x='N_Runs', y='AUC_Top10_Std',
+                            hue='Pipeline', size='AUC_Top10_Mean', ax=ax12)
+            ax12.set_title("Run Consistency Analysis")
+            ax12.set_xlabel("Number of Runs")
+            ax12.set_ylabel("AUC Top-10 Std Dev")
+
+        plt.tight_layout()
+        plt.savefig(self.results_dir / "comprehensive_oracle_evaluation.png",
+                    dpi=300, bbox_inches='tight')
+        plt.show()
+
+        return df, auc_df
+
+    def print_comprehensive_summary(self, all_evaluations):
+        """Print comprehensive summary following the paper format"""
+        print("\n" + "=" * 100)
+        print("🏆 COMPREHENSIVE ORACLE EVALUATION SUMMARY")
+        print("=" * 100)
+
+        summary_table = []
+
+        for query_name, eval_data in all_evaluations.items():
+            if eval_data is None:
+                continue
+
+            oracle_name = eval_data["oracle_name"]
+
+            # Single-shot summary
+            if eval_data["single_shot"]["auc_scores"]:
+                ss_auc_mean = np.mean(eval_data["single_shot"]["auc_scores"])
+                ss_auc_std = np.std(eval_data["single_shot"]["auc_scores"])
+                ss_runs = len(eval_data["single_shot"]["auc_scores"])
+
+                summary_table.append({
+                    'Query': query_name,
+                    'Oracle': oracle_name,
+                    'Pipeline': 'Single-shot',
+                    'AUC_Top10_Mean': ss_auc_mean,
+                    'AUC_Top10_Std': ss_auc_std,
+                    'Runs': ss_runs,
+                    'Total_Molecules': sum(len(run["molecules"]) for run in eval_data["single_shot"]["runs"])
+                })
+
+            # Iterative summary
+            if eval_data["iterative"]["auc_scores"]:
+                it_auc_mean = np.mean(eval_data["iterative"]["auc_scores"])
+                it_auc_std = np.std(eval_data["iterative"]["auc_scores"])
+                it_runs = len(eval_data["iterative"]["auc_scores"])
+
+                summary_table.append({
+                    'Query': query_name,
+                    'Oracle': oracle_name,
+                    'Pipeline': 'Iterative',
+                    'AUC_Top10_Mean': it_auc_mean,
+                    'AUC_Top10_Std': it_auc_std,
+                    'Runs': it_runs,
+                    'Total_Molecules': sum(len(run["molecules"]) for run in eval_data["iterative"]["runs"])
+                })
+
+        # Create summary DataFrame
+        summary_df = pd.DataFrame(summary_table)
+
+        if len(summary_df) > 0:
+            print("\n📋 AUC TOP-10 RESULTS (Following Paper Format):")
+            print("-" * 100)
+            print(
+                f"{'Query':<20} {'Oracle':<20} {'Pipeline':<12} {'AUC-10':<12} {'±Std':<8} {'Runs':<6} {'Molecules':<10}")
+            print("-" * 100)
+
+            for _, row in summary_df.iterrows():
+                runs_marker = "*" if row['Runs'] == 3 else ""
+                print(f"{row['Query']:<20} {row['Oracle']:<20} {row['Pipeline']:<12} "
+                      f"{row['AUC_Top10_Mean']:<8.3f}{runs_marker:<4} "
+                      f"±{row['AUC_Top10_Std']:<7.3f} {row['Runs']:<6} {row['Total_Molecules']:<10}")
+
+            print("-" * 100)
+            print("(*) Results evaluated from 3 independent runs")
+            print("Others assessed from 5 independent runs")
+
+            # Best performing analysis
+            print(f"\n🥇 BEST PERFORMING COMBINATIONS:")
+            best_by_query = summary_df.loc[summary_df.groupby('Query')['AUC_Top10_Mean'].idxmax()]
+            for _, row in best_by_query.iterrows():
+                print(
+                    f"  {row['Query']}: {row['Pipeline']} (AUC-10: {row['AUC_Top10_Mean']:.3f}±{row['AUC_Top10_Std']:.3f})")
+
+            # Overall pipeline comparison
+            print(f"\n📊 OVERALL PIPELINE PERFORMANCE:")
+            pipeline_performance = summary_df.groupby('Pipeline').agg({
+                'AUC_Top10_Mean': ['mean', 'std', 'count'],
+                'Total_Molecules': 'sum'
+            }).round(3)
+            print(pipeline_performance)
+
+        # Save detailed results
+        results_file = self.results_dir / "oracle_evaluation_summary.json"
+        with open(results_file, 'w') as f:
+            json.dump(all_evaluations, f, indent=2, default=str)
+        print(f"\n💾 Detailed results saved to: {results_file}")
+
+        # Save summary table
+        if len(summary_df) > 0:
+            csv_file = self.results_dir / "oracle_auc_summary.csv"
+            summary_df.to_csv(csv_file, index=False)
+            print(f"💾 Summary table saved to: {csv_file}")
+
+        return summary_df
+
+    def run_complete_evaluation(self):
+        """Run the complete oracle evaluation pipeline"""
+        print("🚀 Starting Complete Oracle Evaluation Pipeline")
         print("=" * 80)
 
-        # Compare pipelines if both exist
-        pipelines = df['Pipeline'].unique()
-        if len(pipelines) >= 2:
-            for i in range(len(pipelines)):
-                for j in range(i + 1, len(pipelines)):
-                    pipe1, pipe2 = pipelines[i], pipelines[j]
-                    scores1 = df[df['Pipeline'] == pipe1]['Score']
-                    scores2 = df[df['Pipeline'] == pipe2]['Score']
+        # Step 1: Extract experiment results
+        experiment_results = self.extract_experiment_results()
 
-                    if len(scores1) > 1 and len(scores2) > 1:
-                        t_stat, p_value = stats.ttest_ind(scores1, scores2)
-                        print(f"\n{pipe1} vs {pipe2}:")
-                        print(f"  t-statistic: {t_stat:.3f}")
-                        print(f"  p-value: {p_value:.3f}")
-                        print(f"  Significant difference (p<0.05): {'Yes' if p_value < 0.05 else 'No'}")
+        if not experiment_results:
+            print("❌ No experiment results found!")
+            return
 
-    except ImportError:
-        print("\nNote: Install scipy for statistical significance testing")
+        print(f"✅ Found results for {len(experiment_results)} queries")
+
+        # Step 2: Evaluate each query with its oracle
+        all_evaluations = {}
+
+        for query_name, query_results in experiment_results.items():
+            print(f"\n🔍 Processing query: {query_name}")
+            evaluation = self.evaluate_query_results(query_name, query_results)
+            all_evaluations[query_name] = evaluation
+
+        # Step 3: Create comprehensive visualizations
+        df, auc_df = self.create_comprehensive_plots(all_evaluations)
+
+        # Step 4: Print comprehensive summary
+        summary_df = self.print_comprehensive_summary(all_evaluations)
+
+        print(f"\n🎉 Complete evaluation finished!")
+        print(f"📊 Evaluated {len(all_evaluations)} queries with their respective oracles")
+        print(f"📈 Generated comprehensive plots and summary tables")
+
+        return all_evaluations, df, auc_df, summary_df
 
 
 def main():
-    """Main function to run the complete analysis"""
-    print("🔬 Starting Comprehensive Molecule Analysis")
-    print("=" * 80)
+    """Main function to run generalized oracle evaluation"""
+    # Initialize evaluator
+    evaluator = OracleEvaluator(results_dir="scripts/experiment_results")
 
-    # Load oracle
+    # Run complete evaluation
     try:
-        oracle = Oracle(name="Amlodipine_MPO")  # Changed to albuterol_similarity
-        print("✅ Successfully loaded",{oracle},"oracle")
+        all_evaluations, df, auc_df, summary_df = evaluator.run_complete_evaluation()
+
+        print("\n" + "=" * 80)
+        print("✅ EVALUATION COMPLETE - KEY FINDINGS:")
+        print("=" * 80)
+
+        if len(summary_df) > 0:
+            # Show best overall performance
+            best_overall = summary_df.loc[summary_df['AUC_Top10_Mean'].idxmax()]
+            print(f"🏆 Best Overall Performance:")
+            print(f"   Query: {best_overall['Query']}")
+            print(f"   Pipeline: {best_overall['Pipeline']}")
+            print(f"   Oracle: {best_overall['Oracle']}")
+            print(f"   AUC Top-10: {best_overall['AUC_Top10_Mean']:.3f} ± {best_overall['AUC_Top10_Std']:.3f}")
+            print(f"   Runs: {best_overall['Runs']}")
+
+            # Pipeline comparison
+            pipeline_avg = summary_df.groupby('Pipeline')['AUC_Top10_Mean'].mean()
+            print(f"\n📈 Average Pipeline Performance:")
+            for pipeline, avg_score in pipeline_avg.items():
+                print(f"   {pipeline}: {avg_score:.3f}")
+
+        return all_evaluations, df, auc_df, summary_df
+
     except Exception as e:
-        print(f"❌ Error loading oracle: {e}")
-        return
-
-    # Extract SMILES from all JSON files
-    print("\n📁 Extracting SMILES from JSON files...")
-    single_shot_results, iterative_results = extract_all_smiles_from_dir(directory="scripts/improved_experiment_results/albuterol_similarity_detailed_20250722_074018.json", pattern="*.json")
-
-    if not single_shot_results and not iterative_results:
-        print("❌ No SMILES found in JSON files!")
-        return
-
-    # Score all molecules
-    all_results = []
-
-    # Process single-shot results
-    for query_name, smiles_list in single_shot_results.items():
-        if smiles_list:
-            results = score_molecules(smiles_list, "Single-shot", query_name, oracle)
-            all_results.extend(results)
-
-    # Process iterative results
-    for query_name, smiles_list in iterative_results.items():
-        if smiles_list:
-            results = score_molecules(smiles_list, "Iterative", query_name, oracle)
-            all_results.extend(results)
-
-    if not all_results:
-        print("❌ No valid molecules to analyze!")
-        return
-
-    # Create DataFrame
-    df = pd.DataFrame(all_results)
-
-    # Create visualizations
-    print("\n📊 Creating visualizations...")
-    create_comprehensive_visualization(df)
-
-    # Print analysis
-    print_comprehensive_analysis(df)
-
-    # Statistical analysis
-    perform_statistical_analysis(df)
-
-    print(f"\n🎉 Analysis complete! Evaluated {len(df)} valid molecules from {len(df['Query'].unique())} queries.")
-
-    # Save results to CSV
-    output_file = "albuterol_similarity_analysis_results.csv"
-    df.to_csv(output_file, index=False)
-    print(f"💾 Results saved to {output_file}")
+        print(f"❌ Evaluation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 if __name__ == "__main__":

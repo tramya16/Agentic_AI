@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def load_llm(model_name: str = None, seed: int = None, temperature: float = 0.7) -> LLM:
+def load_llm(model_name: str = None, seed: int = None, temperature: float = 0.6) -> LLM:
     """Load an LLM with proper token limits and rate limiting"""
 
     model_name = model_name or os.getenv("DEFAULT_LLM", "gemini")

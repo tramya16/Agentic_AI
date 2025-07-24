@@ -335,7 +335,7 @@ class PipelineRunner:
             print(f"❌ Single-shot pipeline failed: {e}")
             return {"error": str(e), "valid": [], "invalid": [], "total_generated": 0}
 
-    def run_iterative(self, user_input: str, max_iterations=2):  # Reduced iterations
+    def run_iterative(self, user_input: str, max_iterations=3):  # Reduced iterations
         """Run iterative pipeline with better error handling"""
         try:
             print("🔄 Starting iterative pipeline...")
