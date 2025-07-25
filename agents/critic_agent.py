@@ -57,7 +57,7 @@ EVALUATION TASKS:
 5. Rank molecules by overall quality
 6. Provide specific optimization feedback
 
-Return JSON:
+Return JSON with this structure:
 {{
   "ranked": [
     {{
@@ -86,7 +86,9 @@ Return JSON:
 }}
 
 CRITICAL: Provide SPECIFIC, ACTIONABLE feedback. No generic advice.
+VERY VERY IMPORTANT: RETURN STRUCTURED JSON
+
 """,
         agent=agent,
-        expected_output="Comprehensive JSON evaluation with specific optimization guidance"
+        expected_output="STRUCTURED JSON evaluation with specific optimization guidance"
     )

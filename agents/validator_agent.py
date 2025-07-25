@@ -1,7 +1,10 @@
+import json
+
 from crewai import Agent, Task
+
 from llms.model_loader import load_llm
 from tools.tool_registry import VALIDATOR_TOOLS
-import json
+
 
 def create_validator_agent(llm_seed: int):
     llm = load_llm(seed=llm_seed)
@@ -32,7 +35,7 @@ Validation steps:
 3. Check basic drug-likeness (relaxed criteria)
 4. Flag severe toxicity concerns only
 
-Return JSON:
+Return JSON with this structure:
 {{
   "valid": ["list_of_valid_smiles"],
   "invalid": ["list_of_invalid_smiles"],
@@ -45,7 +48,9 @@ Return JSON:
 }}
 
 Use relaxed criteria - only reject clearly invalid molecules.
+VERY VERY IMPORTANT: RETURN STRUCTURED JSON
+
 """,
         agent=agent,
-        expected_output="JSON with valid/invalid molecule classification"
+        expected_output="STRUCTURED JSON with valid/invalid molecule classification"
     )

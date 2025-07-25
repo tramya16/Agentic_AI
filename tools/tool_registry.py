@@ -60,6 +60,7 @@ VALIDATOR_TOOLS = [
     ComplexityCalculatorTool(),
     MolecularFormulaValidatorTool(),
     SmartsPatternTool(),
+    MolecularFingerprintTool()
 ]
 
 CRITIC_TOOLS = [
@@ -75,6 +76,7 @@ CRITIC_TOOLS = [
     SimilaritySearchTool(),
     FragmentationTool(),
     RingAnalysisTool(),
+    MolecularFingerprintTool(),
 ]
 
 # Legacy support

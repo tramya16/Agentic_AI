@@ -59,7 +59,8 @@ DESIGN EVOLUTION CONSTRAINTS:
 
     return Task(
         description=f"""
-Design {3 - 4} novel molecular candidates for iteration {iteration_number} using systematic medicinal chemistry approaches.
+Design {3} novel molecular candidates for iteration {iteration_number} using systematic medicinal chemistry approaches.
+VERY VERY IMPORTANT: RETURN STRUCTURED JSON RESPONSE
 
 DESIGN OBJECTIVES: {', '.join(objectives[:3])}
 REFERENCE STRUCTURE: {reference_molecules[0] if reference_molecules else 'None'}
@@ -77,7 +78,7 @@ DESIGN PRINCIPLES:
 4. Ensure synthetic feasibility and drug-like properties
 5. Demonstrate clear design rationale for each modification
 
-OUTPUT FORMAT:
+Return JSON with this structure:
 {{
   "candidates": [
     {{
@@ -97,7 +98,9 @@ VALIDATION REQUIREMENTS:
 - Maintain similarity to reference while introducing novelty
 - Address specific feedback from previous iterations
 - Demonstrate systematic design thinking
+
+VERY VERY IMPORTANT: RETURN STRUCTURED JSON
 """,
         agent=agent,
-        expected_output="Scientifically rigorous JSON with molecular designs and comprehensive rationale"
+        expected_output="STRUCTURED JSON with molecular designs and comprehensive rationale"
     )

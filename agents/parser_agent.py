@@ -1,6 +1,8 @@
 from crewai import Agent, Task
+
 from llms.model_loader import load_llm
 from tools.tool_registry import PARSER_TOOLS
+
 
 def create_parser_agent(llm_seed: int | None = None):
     llm = load_llm(seed=llm_seed)
@@ -61,7 +63,9 @@ def create_parsing_task(user_input: str, agent: Agent):
           "design_rationale": "context_and_reasoning",
           "success_criteria": ["evaluation_metrics"]
         }}
+        
+       VERY VERY IMPORTANT: RETURN STRUCTURED JSON  
         """,
         agent=agent,
-        expected_output="Structured JSON specification for molecular design"
+        expected_output="STRUCTURED JSON specification for molecular design"
     )
