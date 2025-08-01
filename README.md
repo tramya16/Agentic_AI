@@ -13,8 +13,6 @@ git clone https://github.com/tramya16/Agentic_AI.git
 cd Agentic_AI
 ```
 
-````
-
 ### 2. Install Miniconda
 
 Follow the installation guide: https://www.anaconda.com/docs/getting-started/miniconda/install
@@ -64,4 +62,3 @@ python main.py
 ## Support
 
 Check the [GitHub repository](https://github.com/tramya16/Agentic_AI.git) for issues and updates.
-````
