@@ -1,4 +1,3 @@
-````markdown
 # Agentic AI Project
 
 ## Overview
@@ -13,6 +12,7 @@ An Agentic AI system using Google's Gemini API for running experiments and oracl
 git clone https://github.com/tramya16/Agentic_AI.git
 cd Agentic_AI
 ```
+
 ````
 
 ### 2. Install Miniconda
@@ -64,7 +64,4 @@ python main.py
 ## Support
 
 Check the [GitHub repository](https://github.com/tramya16/Agentic_AI.git) for issues and updates.
-
-```
-
-```
+````
