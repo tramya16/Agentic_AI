@@ -1,129 +1,71 @@
-from crewai import Agent
-from crewai import Task
+from crewai import Agent, Task
 
 from llms.model_loader import load_llm
-from tools.chem_tools import (PubChemLookupTool,SmilesValidatorTool,
-                              ChemicalNameConverterTool,
-                              SimilarMoleculeFinderTool)
+from tools.tool_registry import PARSER_TOOLS
 
-def create_parser_agent():
-    llm = load_llm()
-    pubchem_tool = PubChemLookupTool()
-    validator_tool = SmilesValidatorTool()
-    name_convertor= ChemicalNameConverterTool()
-    similar_molecules= SimilarMoleculeFinderTool()
+
+def create_parser_agent(llm_seed: int | None = None):
+    llm = load_llm(seed=llm_seed)
     return Agent(
-        role='Molecular Task Parser',
-        goal='Convert user requests into structured molecular design tasks',
-        backstory=(
-            'An expert in chemical informatics that understands natural language '
-            'requests about molecules and converts them to precise specifications'
-        ),
-        tools=[pubchem_tool,validator_tool,name_convertor,similar_molecules],
+        role="Molecular Query Analyst",
+        goal="Parse molecular design queries into comprehensive, actionable specifications for drug discovery",
+        backstory="""You are a senior computational medicinal chemist with expertise in structure-based 
+        drug design. You excel at translating complex molecular design requests into structured 
+        specifications that capture pharmacophore requirements, SAR insights, and optimization objectives.""",
+        tools=PARSER_TOOLS,
         verbose=True,
         llm=llm,
         allow_delegation=False
     )
 
-# def create_parsing_task(user_input: str, agent):
-#     return Task(
-#         description=f"""Parse the user request into structured JSON:
-#         "{user_input}"
-#
-#         Steps:
-#         1. Identify mentioned molecules and convert to canonical SMILES
-#         2. Validate all SMILES strings using validator tool
-#         3. Extract desired properties and constraints
-#         4. For similarity requests, find reference molecules using SimilarMoleculeFinder
-#         5. For property targets, find benchmark examples using PropertyBasedSearch
-#         6. For commercial availability, search ZINC database
-#         7. Output structured JSON with:
-#            - target_molecule: Validated canonical SMILES
-#            - molecule_name: IUPAC or common name
-#            - desired_properties: List of properties to optimize
-#            - constraints: Structural or property requirements
-#            - similarity_target: Min similarity score (0-1)
-#            - reference_molecules: List of similar molecules from databases
-#            - property_benchmarks: Example values from reference datasets
-#
-#         Return ONLY valid JSON, no additional text.
-#         """,
-#         agent=agent,
-#         expected_output="Structured JSON with validated molecular information and reference data"
-#     )
 
-
-def create_parsing_task(user_input: str, agent):
+def create_parsing_task(user_input: str, agent: Agent):
     return Task(
         description=f"""
-You are a molecular design parser. Convert natural language requests into structured JSON specifications for molecule optimization.
+        Parse this molecular design query into structured JSON:
+        User Query: {user_input}
 
---- USER REQUEST ---
-{user_input}
----------------------
+        Extract key information:
+        1. Target molecules (SMILES or names)
+        2. Design objectives
+        3. Structural requirements
+        4. Property constraints
+        5. Biological context
+        6. Similarity requirements
 
-Follow these steps precisely:
-
-1. **Entity Extraction**: Identify all chemical entities (names or SMILES)
-
-2. **Name/SMILES Conversion**:
-   - Convert names to canonical SMILES using `ChemicalNameConverterTool`
-   - Validate all SMILES with `SmilesValidatorTool`
-
-3. **Property Mapping**:
-   - Extract desired properties and map to standard terms:
-        "toxicity" → "LD50"
-        "solubility" → "logS"
-        "potency" → "IC50"
-   - Convert qualitative terms to quantitative ranges
-
-4. **Similarity Handling**:
-   - For "similar to" requests, use `SimilarMoleculeFinderTool`
-   - Set default similarity_target=0.7 if unspecified
-
-5. **Benchmarking**:
-   - For property targets, use `PropertyBasedSearchTool` to find benchmark values
-
-6. **Commercial Search**:
-   - If "purchasable" or "commercial" is mentioned, use `ZincSearchTool`
-
-7. **Constraint Extraction**:
-   - Identify structural/functional constraints
-   - Extract numerical bounds where applicable
-
-8. **Output Assembly**:
-   Create VALID JSON with this structure:
-   {{
-     "target_molecule": {{"smiles": "CC...", "name": "..."}},
-     "optimization_goals": [
-       {{"property": "logS", "direction": "maximize", "target": -4}},
-       {{"property": "LD50", "direction": "minimize", "target": 500}}
-     ],
-     "constraints": [
-       {{"property": "MW", "max": 500}},
-       {{"property": "similarity", "min": 0.75}}
-     ],
-     "reference_data": {{
-       "similar_molecules": ["SMILES1", "SMILES2"],
-       "property_benchmarks": [
-         {{"property": "logS", "value": -3.2, "source": "TDC"}}
-       ]
-     }},
-     "commercial_requirements": {{
-       "required": true/false,
-       "results": [{{"zinc_id": "...", "smiles": "..."}}]
-     }}
-   }}
-
-9. **Validation**:
-   - Ensure JSON is syntactically valid
-   - Include only relevant fields
-   - Add 'warnings' array for any assumptions made
-   - Add 'validation_errors' for problematic inputs
-
-Return ONLY the JSON object, no additional text or explanation.
-DO NOT wrap the JSON in markdown code blocks (e.g., ```json ... ```).
-""",
+        Return JSON with this structure:
+        {{
+          "target_molecules": ["SMILES_or_names"],
+          "task_type": "similarity_search|optimization|scaffold_hopping",
+          "design_objectives": ["primary_goal", "secondary_goals"],
+          "structural_requirements": {{
+            "core_scaffold": "description",
+            "essential_groups": ["group1", "group2"],
+            "pharmacophore": ["feature1", "feature2"]
+          }},
+          "properties": {{
+            "MW": "range_or_target",
+            "logP": "range_or_target",
+            "TPSA": "range_or_target"
+          }},
+          "biological_context": {{
+            "target_protein": "protein_name",
+            "activity_type": "binding|inhibition|agonism",
+            "therapeutic_area": "indication"
+          }},
+          "similarity_requirements": {{
+            "reference_molecules": ["SMILES"],
+            "similarity_threshold": 0.6,
+            "similarity_type": "tanimoto"
+          }},
+          "constraints": ["drug_like", "specific_constraints"],
+          "modification_strategy": ["specific_changes_requested"],
+          "design_rationale": "context_and_reasoning",
+          "success_criteria": ["evaluation_metrics"]
+        }}
+        
+       VERY VERY IMPORTANT: RETURN STRUCTURED JSON  
+        """,
         agent=agent,
-        expected_output="Valid JSON specification for molecular optimization"
+        expected_output="STRUCTURED JSON specification for molecular design"
     )
