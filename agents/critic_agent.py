@@ -55,7 +55,7 @@ EVALUATION TASKS:
 3. Check structural compliance
 4. Evaluate drug-likeness
 5. Rank molecules by overall quality
-6. Provide specific optimization feedback
+6. Provide specific optimization feedback, EXACT NUMERICAL TARGETS TO ACHIEVE OR MOVE TOWARDS.
 
 Return JSON with this structure:
 {{

@@ -4,14 +4,14 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from pipeline_runner import PipelineRunner
-from simple_queries import get_query_data,get_query_list
+from improved_queries import get_query_data,get_query_list
 from molecular_metrics import MolecularMetrics, MetricsVisualizer
 import matplotlib.pyplot as plt
 import os
 
 
 class ExperimentOne:
-    def __init__(self, results_dir="simple_query_experiment_results"):
+    def __init__(self, results_dir="Gemini2.0_Flash_Temp_1_Results"):
         self.results_dir = Path(results_dir)
         # Ensure directory exists with proper permissions
         self.results_dir.mkdir(parents=True, exist_ok=True)

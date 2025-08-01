@@ -59,7 +59,7 @@ DESIGN EVOLUTION CONSTRAINTS:
 
     return Task(
         description=f"""
-Design {3} novel molecular candidates for iteration {iteration_number} using systematic medicinal chemistry approaches.
+Design {5} novel molecular candidates for iteration {iteration_number} using systematic medicinal chemistry approaches.
 VERY VERY IMPORTANT: RETURN STRUCTURED JSON RESPONSE
 
 DESIGN OBJECTIVES: {', '.join(objectives[:3])}

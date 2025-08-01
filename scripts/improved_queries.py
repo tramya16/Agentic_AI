@@ -1,797 +1,793 @@
-# simplified_queries.py
-
 from rdkit import Chem
+from tools.smarts_pattern_tool import SmartsPatternTool
+from tools.molecular_formula_tool import MolecularFormulaValidatorTool
+import json
 
 IMPROVED_PMO_QUERIES = {
     "albuterol_similarity": {
-        "prompt": """Design molecules similar to albuterol while preserving key functional groups.
+        "prompt": """Design molecules with high structural similarity to albuterol, preserving key pharmacophoric features for beta-2 agonist activity.
 
-Target: Albuterol (CC(C)(C)NCC(O)c1ccc(O)c(CO)c1)
-- Beta-2 agonist for asthma
-- Key features: tert-butyl group, beta-hydroxyl, catechol pattern, benzyl alcohol
+Target: Albuterol (SMILES: CC(C)(C)NCC(O)c1ccc(O)c(CO)c1)
+- Task Type: similarity_search
+- Objective: Beta-2 agonist for asthma treatment
+- Key Features: tert-butyl group, beta-hydroxyl, catechol pattern, benzyl alcohol
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4 fingerprint)
 
 Requirements:
-- Keep the core pharmacophore
-- Maintain drug-like properties
-- Don't copy albuterol exactly
+- Maintain core pharmacophore (tert-butylamine, catechol, beta-hydroxyl)
+- Ensure drug-like properties (MW 200-400, LogP 1-3, TPSA 60-100)
+- Avoid exact replication of albuterol
+- Validate SMILES with SmilesValidatorTool
 
-Example changes:
-- Modify alkyl groups on nitrogen
-- Change hydroxyl positions
-- Replace with bioisosteres""",
-        "target_smiles": "CC(C)(C)NCC(O)c1ccc(O)c(CO)c1"
+Design Strategies:
+- Modify alkyl groups on nitrogen (e.g., isopropyl instead of tert-butyl)
+- Adjust hydroxyl positions on aromatic ring
+- Replace catechol with bioisosteres (e.g., resorcinol, pyridone)
+- Extend or shorten benzyl alcohol chain
+
+Constraints:
+- Molecular Weight: 200-400 Da
+- LogP: 1-3
+- TPSA: 60-100 Å²
+- Essential Groups: tertiary amine, hydroxyl, aromatic ring""",
+        "target_smiles": "CC(C)(C)NCC(O)c1ccc(O)c(CO)c1",
+        "task_type": "similarity_search",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "200-400", "logP": "1-3", "TPSA": "60-100", "HBD": "2-4", "HBA": "2-4"}
     },
 
     "amlodipine_mpo": {
-        "prompt": """Generate amlodipine-like molecules with good drug properties.
+        "prompt": """Generate molecules structurally similar to amlodipine with optimized physicochemical properties.
 
-Target: Amlodipine (CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C)
-- Calcium channel blocker
-- Keep dihydropyridine core and 3 rings
-- Optimize MW (300-450), LogP (2-4), TPSA (60-90)
+Target: Amlodipine (SMILES: CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C)
+- Task Type: optimization
+- Objective: Calcium channel blocker for hypertension
+- Key Features: dihydropyridine core, chlorophenyl, ester groups, amine side chain
+- Similarity Threshold: 0.65 (Tanimoto, ECFP4)
 
-Example changes:
-- Vary ester groups
-- Replace chlorophenyl
-- Modify side chains""",
-        "target_smiles": "CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C"
+Requirements:
+- Preserve dihydropyridine core (SMARTS: c1c(c(c(c(c1)C)C(=O)OCC)C(=O)OC)N)
+- Include 3 rings (1 dihydropyridine, 1 chlorophenyl, 1 flexible)
+- Optimize properties: MW 300-450, LogP 2-4, TPSA 60-90
+- Avoid exact replication of amlodipine
+- Validate core SMARTS with SmartsPatternTool
+
+Design Strategies:
+- Vary ester groups (e.g., methyl to ethyl ester)
+- Replace chlorophenyl with other substituted aromatics
+- Modify amine side chain length or substituents
+- Introduce polar groups to adjust TPSA
+
+Constraints:
+- Core SMARTS: c1c(c(c(c(c1)C)C(=O)OCC)C(=O)OC)N
+- Molecular Weight: 300-450 Da
+- LogP: 2-4
+- TPSA: 60-90 Å²""",
+        "target_smiles": "CCOC(=O)C1=C(COCCN)NC(=C(C1c1ccccc1Cl)C(=O)OC)C",
+        "task_type": "optimization",
+        "core_smarts": "c1c(c(c(c(c1)C)C(=O)OCC)C(=O)OC)N",
+        "similarity_threshold": 0.65,
+        "property_targets": {"MW": "300-450", "logP": "2-4", "TPSA": "60-90", "HBD": "1-3", "HBA": "4-6"}
     },
 
     "celecoxib_rediscovery": {
-        "prompt": """Design celecoxib-like COX-2 inhibitors.
+        "prompt": """Design COX-2 selective inhibitors similar to celecoxib.
 
-Target: Celecoxib (Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1)
-- COX-2 selective inhibitor
-- Keep pyrazole core, sulfonamide, trifluoromethyl
-- Maintain anti-inflammatory activity
-
-Example changes:
-- Vary aromatic substituents
-- Replace trifluoromethyl group
-- Modify sulfonamide""",
-        "target_smiles": "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1"
-    },
-
-"deco_hop": {
-    "prompt": """Design drug-like molecules that preserve the quinazoline core scaffold while modifying peripheral decorations to explore chemical diversity.
-
-Target Pharmacophore: CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C
-- Quinazoline-based kinase inhibitor scaffold
-- Key features: quinazoline core, ether linkage, sulfonamide group, thiazole decoration
+Target: Celecoxib (SMILES: Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1)
+- Task Type: similarity_search
+- Objective: COX-2 inhibition for anti-inflammatory activity
+- Key Features: pyrazole core, sulfonamide, trifluoromethyl, two aromatic rings
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
 
 Requirements:
-- Preserve the quinazoline scaffold matching SMARTS: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12
-- Avoid forbidden motifs: CS([#6])(=O)=O and [#7]-c1ccc2ncsc2c1
-- Maintain moderate similarity to reference (capped at 0.85)
-- Explore peripheral decorations creatively
-- Don't copy the reference exactly
+- Preserve pyrazole core (SMARTS: c1cn(nn1)c2ccccc2)
+- Maintain sulfonamide and trifluoromethyl groups
+- Ensure drug-like properties (MW 300-500, LogP 2-4, TPSA 60-100)
+- Avoid exact replication of celecoxib
+- Validate core SMARTS with SmartsPatternTool
 
-Example modifications:
-- Replace tert-butyl sulfonamide with other groups
-- Modify the propoxy chain length
-- Change thiazole decoration
-- Add/remove substituents on quinazoline""",
-    "target_smiles": "CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C",
-    "core_smarts": "[#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12",
-    "forbidden_smarts": ["CS([#6])(=O)=O", "[#7]-c1ccc2ncsc2c1"],
-    "similarity_cap": 0.85
-},
+Design Strategies:
+- Vary substituents on aromatic rings (e.g., methyl to ethyl)
+- Replace trifluoromethyl with other fluorinated groups
+- Modify sulfonamide to sulfone or other bioisosteres
+- Adjust pyrazole substitution pattern
+
+Constraints:
+- Core SMARTS: c1cn(nn1)c2ccccc2
+- Molecular Weight: 300-500 Da
+- LogP: 2-4
+- TPSA: 60-100 Å²""",
+        "target_smiles": "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1",
+        "task_type": "similarity_search",
+        "core_smarts": "c1cn(nn1)c2ccccc2",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "300-500", "logP": "2-4", "TPSA": "60-100", "HBD": "1-2", "HBA": "3-5"}
+    },
+
+    "deco_hop": {
+        "prompt": """Design drug-like molecules via scaffold hopping, preserving the propoxy-benzothiazole decoration while replacing the quinazoline core.
+
+Target: CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C
+- Task Type: scaffold_hopping
+- Objective: Kinase inhibitor with novel scaffold
+- Core SMARTS to Replace: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12 (quinazoline)
+- Decoration SMARTS to Preserve: [#6]-[#6]-[#6]-[#8]-[#6]~[#6]~[#6]~[#6]~[#6]-[#7]-c1ccc2ncsc2c1 (propoxy-benzothiazole)
+- Forbidden SMARTS: [CS([#6])(=O)=O], [#7]-c1ccc2ncsc2c1
+- Similarity Cap: 0.85 (Tanimoto, ECFP4)
+
+Requirements:
+- Replace quinazoline core with alternative heterocycles (e.g., pyrimidine, pyrazine, quinoline)
+- Preserve propoxy-benzothiazole decoration
+- Avoid forbidden motifs (validate with SmartsPatternTool)
+- Ensure drug-like properties (MW 300-500, LogP 2-4, TPSA 60-100)
+- Validate new scaffold with SmartsPatternTool
+
+Design Strategies:
+- Use pyrimidine, pyrazine, or quinoline as core replacements
+- Maintain ether linkage and sulfonamide group
+- Vary thiazole substituents
+- Adjust propoxy chain length or substituents
+
+Constraints:
+- Core SMARTS to Replace: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12
+- Decoration SMARTS to Preserve: [#6]-[#6]-[#6]-[#8]-[#6]~[#6]~[#6]~[#6]~[#6]-[#7]-c1ccc2ncsc2c1
+- Forbidden SMARTS: [CS([#6])(=O)=O], [#7]-c1ccc2ncsc2c1
+- Molecular Weight: 300-500 Da
+- LogP: 2-4
+- TPSA: 60-100 Å²""",
+        "target_smiles": "CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C",
+        "task_type": "scaffold_hopping",
+        "core_smarts": "[#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12",
+        "forbidden_smarts": ["CS([#6])(=O)=O", "[#7]-c1ccc2ncsc2c1"],
+        "similarity_cap": 0.85,
+        "property_targets": {"MW": "300-500", "logP": "2-4", "TPSA": "60-100", "HBD": "1-3", "HBA": "3-5"}
+    },
 
     "drd2_binding": {
-        "prompt": """Design molecules that bind strongly to dopamine D2 receptor.
+        "prompt": """Design molecules with high predicted binding affinity to dopamine D2 receptor (DRD2).
 
 Target: High DRD2 binding affinity
-- Need basic nitrogen, aromatic rings, proper linker
-- CNS drug-like properties (MW<450, LogP 2-5)
-- Reference: haloperidol, risperidone, aripiprazole
-
-Key features:
-- Basic nitrogen (protonatable)
-- Aromatic system
-- 3-4 atom linker
-- Avoid toxicity""",
-        "target_protein": "DRD2"
-    },
-    "fexofenadine_mpo": {
-    "prompt": """Create molecules structurally similar to fexofenadine with TPSA ≈90 and logP ≈4.
-
-Target: Fexofenadine (CC(C)(C(=O)O)c1ccc(cc1)C(O)CCCN2CCC(CC2)C(O)(c3ccccc3)c4ccccc4)
-- Non-sedating antihistamine (H1 receptor antagonist)
-- Key features: carboxylic acid, hydroxyl groups, piperidine ring, diphenylmethyl core, aromatic systems
+- Task Type: optimization
+- Objective: Antipsychotic or CNS-active molecules
+- Reference Molecules: haloperidol, risperidone, aripiprazole
+- Key Features: basic nitrogen (protonatable), aromatic rings, 3-4 atom linker
 
 Requirements:
-- Maintain structural similarity to fexofenadine
-- Target TPSA around 90
-- Aim for LogP close to 4 (moderate lipophilicity)
-- Preserve antihistamine pharmacophore
-- Don't copy fexofenadine exactly
+- Ensure CNS penetration (use BBBPermeantPredictionTool)
+- Optimize properties: MW <450, LogP 2-5, TPSA 40-80
+- Include basic nitrogen and aromatic systems
+- Avoid toxicity (validate with ToxicityCheckTool)
+- Similarity Threshold: 0.6 (Tanimoto, ECFP4) to references
 
-Example modifications:
-- Alter carboxylic acid to bioisosteres (tetrazole, hydroxamic acid)
-- Modify piperidine ring substituents
-- Change aromatic ring substitution patterns
+Design Strategies:
+- Incorporate piperazine or piperidine for basic nitrogen
+- Use arylpiperazine or benzisoxazole scaffolds
+- Vary linker length (3-4 atoms, e.g., propyl, butyl)
+- Add polar groups to balance TPSA and LogP
+
+Constraints:
+- Molecular Weight: <450 Da
+- LogP: 2-5
+- TPSA: 40-80 Å²
+- Essential Features: basic nitrogen, 2-3 aromatic rings, 3-4 atom linker""",
+        "target_protein": "DRD2",
+        "task_type": "optimization",
+        "similarity_threshold": 0.6,
+        "property_targets": {"MW": "<450", "logP": "2-5", "TPSA": "40-80", "HBD": "1-2", "HBA": "2-4"}
+    },
+
+    "fexofenadine_mpo": {
+        "prompt": """Design molecules structurally similar to fexofenadine with optimized physicochemical properties.
+
+Target: Fexofenadine (SMILES: CC(C)(C(=O)O)c1ccc(cc1)C(O)CCCN2CCC(CC2)C(O)(c3ccccc3)c4ccccc4)
+- Task Type: optimization
+- Objective: Non-sedating antihistamine (H1 receptor antagonist)
+- Key Features: carboxylic acid, hydroxyl groups, piperidine ring, diphenylmethyl core
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
+
+Requirements:
+- Maintain antihistamine pharmacophore (piperidine, diphenylmethyl)
+- Target TPSA ~90 Å², LogP ~4
+- Ensure drug-like properties (MW 400-600, HBD 2-3, HBA 4-6)
+- Avoid exact replication of fexofenadine
+- Validate SMILES with SmilesValidatorTool
+
+Design Strategies:
+- Replace carboxylic acid with bioisosteres (e.g., tetrazole)
+- Modify piperidine substituents or ring size
 - Adjust alkyl chain length between aromatic rings
-- Replace hydroxyl groups with other polar groups""",
-    "target_smiles": "CC(C)(C(=O)O)c1ccc(cc1)C(O)CCCN2CCC(CC2)C(O)(c3ccccc3)c4ccccc4"
-},
+- Replace hydroxyl with other polar groups (e.g., amine)
 
-"gsk3b_activity": {
-    "prompt": """Design molecules with high predicted binding affinity to GSK3B (Glycogen Synthase Kinase 3 Beta).
+Constraints:
+- Molecular Weight: 400-600 Da
+- LogP: ~4
+- TPSA: ~90 Å²
+- Essential Groups: carboxylic acid or bioisostere, piperidine, diphenylmethyl""",
+        "target_smiles": "CC(C)(C(=O)O)c1ccc(cc1)C(O)CCCN2CCC(CC2)C(O)(c3ccccc3)c4ccccc4",
+        "task_type": "optimization",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "400-600", "logP": "~4", "TPSA": "~90", "HBD": "2-3", "HBA": "4-6"}
+    },
+
+    "gsk3b_activity": {
+        "prompt": """Design molecules with high predicted binding affinity to GSK3B (Glycogen Synthase Kinase 3 Beta).
 
 Target: GSK3B kinase inhibitors
-- Key enzyme involved in glycogen metabolism and Wnt signaling
-- Therapeutic target for diabetes, Alzheimer's disease, and cancer
-- ATP-competitive and allosteric binding sites available
+- Task Type: optimization
+- Objective: Inhibit GSK3B for diabetes, Alzheimer's, or cancer
+- Key Features: heterocyclic core, 1-2 H-bond donors, 2-4 H-bond acceptors, aromatic rings
+- Pharmacophore: Heterocyclic core with H-bond donors/acceptors for ATP site
 
 Requirements:
-- Maximize predicted GSK3B binding probability (0-1 score)
-- Design novel structures, don't copy known inhibitors exactly
-- Consider drug-like properties (Lipinski's Rule of Five)
+- Maximize GSK3B binding probability (0-1 score)
+- Ensure drug-like properties (Lipinski's Rule: MW 200-500, LogP 1-4, TPSA 40-100)
+- Validate heterocyclic core with FragmentationTool and RingAnalysisTool
+- Avoid known inhibitors (novel structures)
 
-Common GSK3B inhibitor features:
-- Heterocyclic cores (pyrimidines, purines, indoles)
-- Hydrogen bond donors/acceptors for ATP site
-- Aromatic rings for π-π stacking
-- Polar substituents for selectivity
-- Molecular weight 200-500 Da
+Design Strategies:
+- Use pyrimidine, purine, or indole scaffolds
+- Incorporate 1-2 H-bond donors and 2-4 acceptors
+- Add aromatic rings for π-π stacking
+- Include polar substituents for selectivity
 
-Example scaffolds to consider:
-- Maleimide derivatives
-- Pyrazine-based compounds
-- Indirubins and analogues
-- Thiadiazolidinone cores
-- Benzothiazole frameworks""",
-    "target_smiles": None
-},
-    
-        "isomers_c7h8n2o2": {
-        "prompt": """Generate molecules with exact formula C7H8N2O2.
+Constraints:
+- Molecular Weight: 200-500 Da
+- LogP: 1-4
+- TPSA: 40-100 Å²
+- Essential Features: heterocyclic core, H-bond donors/acceptors""",
+        "target_smiles": None,
+        "task_type": "optimization",
+        "property_targets": {"MW": "200-500", "logP": "1-4", "TPSA": "40-100", "HBD": "1-2", "HBA": "2-4"}
+    },
 
-HARD CONSTRAINT: Must have exactly 7C, 8H, 2N, 2O atoms.
+    "isomers_c7h8n2o2": {
+        "prompt": """Generate molecules with exact molecular formula C7H8N2O2.
 
-Common patterns:
-- Aromatic amines with functional groups  
-- Nitroaromatic compounds
-- Aminobenzoic acid derivatives
+Target Formula: C7H8N2O2
+- Task Type: isomers
+- Objective: Chemically valid isomers with exact atom counts
+- Hard Constraint: Exactly 7C, 8H, 2N, 2O (validate with MolecularFormulaValidatorTool)
 
-Strategy: Start with benzene ring + add remaining atoms as functional groups.""",
-        "molecular_formula": "C7H8N2O2"
+Requirements:
+- Generate diverse isomers (aromatic, aliphatic, heterocyclic)
+- Ensure exact atom counts (C7H8N2O2)
+- Maintain drug-like properties (MW ~150-300, LogP 1-3, TPSA 40-80)
+- Validate SMILES with SmilesValidatorTool
+
+Design Strategies:
+- Start with benzene ring and add functional groups (e.g., nitro, amide)
+- Explore heterocyclic cores (e.g., pyrimidine, pyrazole)
+- Include polar groups (e.g., hydroxyl, amine) for TPSA
+- Vary connectivity (e.g., ortho vs. meta substitution)
+
+Constraints:
+- Molecular Formula: C7H8N2O2
+- Molecular Weight: ~150-300 Da
+- LogP: 1-3
+- TPSA: 40-80 Å²""",
+        "molecular_formula": "C7H8N2O2",
+        "task_type": "isomers",
+        "property_targets": {"MW": "150-300", "logP": "1-3", "TPSA": "40-80", "HBD": "1-3", "HBA": "2-4"}
     },
 
     "isomers_c9h10n2o2pf2cl": {
-    "prompt": """Design isomers with the exact molecular formula C9H10N2O2PF2Cl.
+        "prompt": """Design isomers with exact molecular formula C9H10N2O2PF2Cl.
 
 Target Formula: C9H10N2O2PF2Cl
-- Exactly 9 Carbon atoms
-- Exactly 10 Hydrogen atoms  
-- Exactly 2 Nitrogen atoms
-- Exactly 2 Oxygen atoms
-- Exactly 1 Phosphorus atom
-- Exactly 2 Fluorine atoms
-- Exactly 1 Chlorine atom
+- Task Type: isomers
+- Objective: Chemically valid isomers with exact atom counts
+- Hard Constraint: Exactly 9C, 10H, 2N, 2O, 1P, 2F, 1Cl (validate with MolecularFormulaValidatorTool)
 
 Requirements:
-- Generate chemically valid isomers with this exact composition
-- No missing or extra atoms allowed
-- Create structurally diverse arrangements
-- Consider different connectivity patterns
+- Generate diverse isomers (aromatic, phosphonate, heterocyclic)
+- Ensure exact atom counts
+- Maintain drug-like properties (MW 250-400, LogP 1-4, TPSA 40-100)
+- Validate SMILES with SmilesValidatorTool
 
-Structural considerations:
-- Phosphorus can form 3-5 bonds (common oxidation states)
-- Halogens (F, Cl) typically form single bonds
-- Nitrogen can be sp3, sp2, or sp hybridized
-- Consider aromatic vs aliphatic carbon frameworks
-- Possible functional groups: phosphonates, amines, amides, esters
+Design Strategies:
+- Incorporate phosphonate or phosphinate groups
+- Use aromatic rings with halogen substituents
+- Explore nitrogen-containing heterocycles (e.g., pyridine, triazole)
+- Vary halogen positions (F, Cl) on aromatic or aliphatic chains
 
-Example structural motifs:
-- Aromatic rings with heteroatom substituents
-- Phosphonate or phosphinate groups
-- Halogenated aromatic compounds
-- Nitrogen-containing heterocycles""",
-    "target_smiles": None
-},
+Constraints:
+- Molecular Formula: C9H10N2O2PF2Cl
+- Molecular Weight: 250-400 Da
+- LogP: 1-4
+- TPSA: 40-100 Å²""",
+        "molecular_formula": "C9H10N2O2PF2Cl",
+        "task_type": "isomers",
+        "property_targets": {"MW": "250-400", "logP": "1-4", "TPSA": "40-100", "HBD": "1-2", "HBA": "3-5"}
+    },
 
     "jnk3_inhibition": {
-    "prompt": """Design drug-like molecules with high predicted JNK3 (c-Jun N-terminal kinase 3) inhibitory activity.
+        "prompt": """Design drug-like molecules with high predicted JNK3 (c-Jun N-terminal kinase 3) inhibitory activity.
 
 Target: JNK3 kinase inhibitors
-- Key enzyme in MAPK signaling pathway
-- Therapeutic target for neurodegenerative diseases, diabetes, and cancer
-- ATP-competitive binding site in kinase domain
+- Task Type: optimization
+- Objective: Inhibit JNK3 for neurodegenerative diseases, diabetes, or cancer
+- Key Features: heterocyclic core, 1-2 H-bond donors, 2-4 H-bond acceptors, aromatic rings
+- Reference: 4-phenyl-1,3-thiazol-2-amine (SMILES: C1=CC=C(C=C1)C2=NC(=CS2)N)
+- Similarity Threshold: 0.6 (Tanimoto, ECFP4)
 
 Requirements:
-- Maximize predicted JNK3 inhibition probability (0-1 score)
-- Design chemically valid, drug-like molecules
-- Follow Lipinski's Rule of Five guidelines
-- Don't copy known inhibitors exactly
+- Maximize JNK3 inhibition probability (0-1 score)
+- Ensure drug-like properties (MW 200-500, LogP 1-4, TPSA 40-100)
+- Validate heterocyclic core with FragmentationTool and RingAnalysisTool
+- Avoid exact replication of reference
 
-Common JNK3 inhibitor features:
-- Heterocyclic cores (pyrimidines, thiazoles, pyrazoles, indoles)
-- Hydrogen bond donors/acceptors for ATP site interaction
-- Aromatic rings for hydrophobic interactions
-- Molecular weight 200-500 Da
-- Moderate lipophilicity (LogP 1-4)
+Design Strategies:
+- Use aminothiazole, pyrazole, or indole scaffolds
+- Incorporate 1-2 H-bond donors and 2-4 acceptors
+- Add aromatic rings for hydrophobic interactions
+- Include polar substituents for selectivity
 
-Example scaffolds to consider:
-- Aminothiazole derivatives
-- Pyrazolopyrimidines  
-- Indazole-based compounds
-- Quinoline/quinazoline cores
-- Benzimidazole frameworks
-- Substituted anilines with heterocycles
+Constraints:
+- Molecular Weight: 200-500 Da
+- LogP: 1-4
+- TPSA: 40-100 Å²
+- Essential Features: heterocyclic core, H-bond donors/acceptors""",
+        "target_smiles": "C1=CC=C(C=C1)C2=NC(=CS2)N",
+        "task_type": "optimization",
+        "similarity_threshold": 0.6,
+        "property_targets": {"MW": "200-500", "logP": "1-4", "TPSA": "40-100", "HBD": "1-2", "HBA": "2-4"}
+    },
 
-Reference structure: 4-phenyl-1,3-thiazol-2-amine scaffold""",
-    "target_smiles": "C1=CC=C(C=C1)C2=NC(=CS2)N"
-},
+    "median1_similarity": {
+        "prompt": """Design molecules simultaneously similar to camphor and menthol based on ECFP4 fingerprint similarity.
 
-"median1_similarity": {
-    "prompt": """Design molecules that are simultaneously similar to both camphor and menthol based on ECFP4 fingerprint similarity.
-
-Target molecules: 
-- Camphor: CC1(C)C2CCC1(C)C(=O)C2 (bicyclic ketone, monoterpene)
-- Menthol: CC(C)C1CCC(C)CC1O (cyclohexane with hydroxyl, monoterpene)
-
-Requirements:
-- Achieve high structural similarity to both reference molecules
-- Balance features from both camphor and menthol
-- Create novel structures, don't copy either molecule exactly
-- Maintain drug-like properties
-
-Key structural features to consider:
-- Camphor: bicyclic structure, ketone group, quaternary carbons, methyl substituents
-- Menthol: cyclohexane ring, secondary alcohol, isopropyl group, axial methyl
-- Common: saturated carbon frameworks, multiple methyl groups, monoterpene-like scaffolds
-
-Design strategies:
-- Combine bicyclic elements with hydroxyl functionality
-- Incorporate both ketone and alcohol groups
-- Use similar carbon frameworks (C10 monoterpene-like)
-- Maintain similar substitution patterns
-- Consider stereochemistry for optimal similarity
-
-Example hybrid features:
-- Bicyclic alcohols combining camphor's rigidity with menthol's OH
-- Cyclohexane derivatives with camphor-like substitution
-- Bridged systems with both ketone and alcohol groups""",
-    "target_smiles": ["CC1(C)C2CCC1(C)C(=O)C2", "CC(C)C1CCC(C)CC1O"]
-},
-"median2_similarity": {
-    "prompt": """Design molecules that are simultaneously similar to both tadalafil and sildenafil based on structural similarity.
-
-Target molecules:
-- Tadalafil: O=C1N(CC(N2C1CC3=C(C2C4=CC5=C(OCO5)C=C4)NC6=C3C=CC=C6)=O)C (PDE5 inhibitor for erectile dysfunction)
-- Sildenafil: CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C (PDE5 inhibitor, Viagra)
+Target Molecules:
+- Camphor: CC1(C)C2CCC1(C)C(=O)C2 (bicyclic ketone)
+- Menthol: CC(C)C1CCC(C)CC1O (cyclohexane with hydroxyl)
+- Task Type: similarity_search
+- Objective: Balance monoterpene features for drug-like molecules
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4, balanced for both)
 
 Requirements:
-- Achieve balanced structural similarity to both reference molecules
-- Capture key pharmacophoric features from both compounds
-- Create novel structures, don't copy either molecule exactly
-- Maintain drug-like properties and PDE5 inhibitor potential
+- Achieve high similarity to both molecules
+- Maintain drug-like properties (MW 150-300, LogP 2-4, TPSA 20-60)
+- Avoid exact replication of either molecule
+- Validate SMILES with SmilesValidatorTool
 
-Shared structural features to consider:
-- Both are PDE5 inhibitors with similar mechanism of action
-- Heterocyclic core systems (indole-like in tadalafil, pyrazolopyrimidinone in sildenafil)
-- Aromatic ring systems with substitution patterns
-- Nitrogen-containing heterocycles
-- Amide/lactam functionality
-- Bulky substituents for selectivity
+Design Strategies:
+- Combine bicyclic and cyclohexane elements
+- Incorporate ketone and hydroxyl groups
+- Maintain C10 monoterpene-like framework
+- Adjust methyl or isopropyl substituents
 
-Key differences to balance:
-- Tadalafil: fused tricyclic system, methylenedioxyphenyl group, more rigid structure
-- Sildenafil: pyrazole-pyrimidine core, sulfonamide group, piperazine moiety, more flexible
+Constraints:
+- Molecular Weight: 150-300 Da
+- LogP: 2-4
+- TPSA: 20-60 Å²
+- Essential Features: saturated carbon framework, ketone or hydroxyl""",
+        "target_smiles": ["CC1(C)C2CCC1(C)C(=O)C2", "CC(C)C1CCC(C)CC1O"],
+        "task_type": "similarity_search",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "150-300", "logP": "2-4", "TPSA": "20-60", "HBD": "0-2", "HBA": "1-3"}
+    },
 
-Design strategies:
-- Combine heterocyclic cores from both molecules
-- Include both rigid and flexible elements
-- Incorporate nitrogen heterocycles with appropriate substitution
-- Balance aromatic content and molecular complexity
-- Consider bioisosteric replacements for key functional groups
+    "median2_similarity": {
+        "prompt": """Design molecules simultaneously similar to tadalafil and sildenafil based on ECFP4 fingerprint similarity.
 
-Example hybrid approaches:
-- Indole-pyrazole fused systems
-- Pyrimidine cores with methylenedioxyphenyl substituents
-- Lactam structures with sulfonamide modifications""",
-    "target_smiles": ["O=C1N(CC(N2C1CC3=C(C2C4=CC5=C(OCO5)C=C4)NC6=C3C=CC=C6)=O)C", "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C"]
-},
-
-"mestranol_similarity": {
-    "prompt": """Design molecules structurally similar to mestranol while preserving key functional groups and core scaffold.
-
-Target: Mestranol (COc1ccc2[C@H]3CC[C@@]4(C)[C@@H](CC[C@@]4(O)C#C)[C@@H]3CCc2c1)
-- Synthetic estrogen used in oral contraceptives
-- Key features: steroid backbone, ethinyl group at C17, methoxy group at C3, phenolic A-ring
+Target Molecules:
+- Tadalafil: O=C1N(CC(N2C1CC3=C(C2C4=CC5=C(OCO5)C=C4)NC6=C3C=CC=C6)=O)C
+- Sildenafil: CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C
+- Task Type: similarity_search
+- Objective: PDE5 inhibitors for erectile dysfunction
+- Similarity Threshold: 0.65 (Tanimoto, ECFP4, balanced for both)
 
 Requirements:
-- Maintain structural similarity to mestranol
-- Preserve core steroid scaffold (four-ring system)
-- Keep key functional groups for hormonal activity
-- Don't copy mestranol exactly
-- Maintain drug-like properties
+- Balance features from tadalafil (tricyclic, indole-like) and sildenafil (pyrazolopyrimidinone)
+- Ensure drug-like properties (MW 300-500, LogP 2-4, TPSA 60-100)
+- Avoid exact replication of either molecule
+- Validate SMILES with SmilesValidatorTool
 
-Critical structural elements:
-- Steroid backbone (gonane core structure)
-- Ethinyl group (-C≡C-H) at position 17α for oral activity
-- Aromatic A-ring (phenol derivative)
-- Methoxy substitution at C3 position
-- Tertiary alcohol at C17
-- Proper stereochemistry at ring junctions
+Design Strategies:
+- Combine indole and pyrazole-pyrimidine cores
+- Incorporate lactam and sulfonamide features
+- Add methylenedioxyphenyl or piperazine groups
+- Balance rigidity and flexibility
 
-Possible modifications to consider:
-- Replace methoxy with other alkoxy groups (ethoxy, propoxy)
+Constraints:
+- Molecular Weight: 300-500 Da
+- LogP: 2-4
+- TPSA: 60-100 Å²
+- Essential Features: heterocyclic core, amide/lactam, aromatic rings""",
+        "target_smiles": ["O=C1N(CC(N2C1CC3=C(C2C4=CC5=C(OCO5)C=C4)NC6=C3C=CC=C6)=O)C",
+                          "CCCC1=NN(C2=C1N=C(NC2=O)C3=C(C=CC(=C3)S(=O)(=O)N4CCN(CC4)C)OCC)C"],
+        "task_type": "similarity_search",
+        "similarity_threshold": 0.65,
+        "property_targets": {"MW": "300-500", "logP": "2-4", "TPSA": "60-100", "HBD": "1-3", "HBA": "4-6"}
+    },
+
+    "mestranol_similarity": {
+        "prompt": """Design molecules structurally similar to mestranol, preserving the steroid scaffold and key pharmacophores.
+
+Target: Mestranol (SMILES: COc1ccc2[C@H]3CC[C@@]4(C)[C@@H](CC[C@@]4(O)C#C)[C@@H]3CCc2c1)
+- Task Type: similarity_search
+- Objective: Synthetic estrogen for oral contraceptives
+- Key Features: steroid backbone, ethinyl group at C17, methoxy at C3, phenolic A-ring
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
+
+Requirements:
+- Preserve steroid scaffold (SMARTS: C1CC2C(C(C1)C3CCC4(C)C(C3)CCC4)
+- Maintain ethinyl and phenolic A-ring
+- Ensure drug-like properties (MW 300-400, LogP 3-5, TPSA 20-60)
+- Avoid exact replication of mestranol
+- Validate core SMARTS with SmartsPatternTool
+
+Design Strategies:
+- Replace methoxy with ethoxy or propoxy
 - Modify ethinyl to other alkynyl groups
-- Change aromatic ring substitution patterns
-- Alter alkyl substituents while preserving core
-- Consider bioisosteric replacements for key groups
-- Maintain 17α-ethinyl for oral bioavailability
+- Add halogens to A-ring
+- Adjust stereochemistry or alkyl substituents
 
-Example strategies:
-- Ethoxy analogue: replace -OCH3 with -OCH2CH3
-- Hydroxyl derivative: replace methoxy with -OH (ethynylestradiol-like)
-- Halogenated variants: add F, Cl to aromatic ring
-- Extended alkynyl: replace ethinyl with propynyl""",
-    "target_smiles": "COc1ccc2[C@H]3CC[C@@]4(C)[C@@H](CC[C@@]4(O)C#C)[C@@H]3CCc2c1"
-},
-"osimertinib_mpo": {
-    "prompt": """Design molecules similar to osimertinib while optimizing physicochemical properties.
+Constraints:
+- Core SMARTS: C1CC2C(C(C1)C3CCC4(C)C(C3)CCC4
+- Molecular Weight: 300-400 Da
+- LogP: 3-5
+- TPSA: 20-60 Å²""",
+        "target_smiles": "COc1ccc2[C@H]3CC[C@@]4(C)[C@@H](CC[C@@]4(O)C#C)[C@@H]3CCc2c1",
+        "task_type": "similarity_search",
+        "core_smarts": "C1CC2C(C(C1)C3CCC4(C)C(C3)CCC4",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "300-400", "logP": "3-5", "TPSA": "20-60", "HBD": "1-2", "HBA": "2-3"}
+    },
 
-Target: Osimertinib (COc1cc(N(C)CCN(C)C)c(NC(=O)C=C)cc1Nc2nccc(n2)c3cn(C)c4ccccc34)
-- Third-generation EGFR tyrosine kinase inhibitor
-- Used for EGFR T790M mutation-positive non-small cell lung cancer
-- Key features: pyrimidine core, indole system, acrylamide warhead, methoxy groups, tertiary amines
+    "osimertinib_mpo": {
+        "prompt": """Design molecules similar to osimertinib with optimized physicochemical properties.
 
-Requirements:
-- Maintain structural similarity to osimertinib
-- Target TPSA around 100 Ų (topological polar surface area)
-- Aim for LogP close to 1 (low-to-moderate lipophilicity)
-- Preserve key pharmacophoric elements
-- Don't copy osimertinib exactly
-
-Critical structural elements:
-- Pyrimidine core for EGFR binding
-- Indole ring system for selectivity
-- Acrylamide group (Michael acceptor for covalent binding)
-- Methoxy substituents for potency
-- Tertiary amine groups for solubility
-- Aromatic aniline linker
-
-Design strategies for property optimization:
-- Increase polarity: add hydroxyl groups, replace methoxy with polar groups
-- Reduce lipophilicity: introduce hydrophilic substituents, polar heterocycles
-- Maintain activity: preserve pyrimidine-aniline-indole framework
-- Balance properties: optimize substitution patterns
-
-Example modifications:
-- Replace methoxy with hydroxyl or amino groups
-- Add polar substituents to aromatic rings
-- Introduce additional nitrogen atoms in rings
-- Modify alkyl chains to more polar groups
-- Consider bioisosteric replacements for key groups
-
-Fingerprint considerations:
-- FCFP4 similarity should be moderate (≤0.8) - functional class preservation
-- ECFP6 similarity should be high (≈0.85) - extended connectivity maintenance""",
-    "target_smiles": "COc1cc(N(C)CCN(C)C)c(NC(=O)C=C)cc1Nc2nccc(n2)c3cn(C)c4ccccc34"
-},
-"perindopril_mpo": {
-    "prompt": """Design molecules similar to perindopril while incorporating approximately 2 aromatic rings.
-
-Target: Perindopril (O=C(OCC)C(NC(C(=O)N1C(C(=O)O)CC2CCCCC12)C)CCC)
-- ACE inhibitor for hypertension and heart failure
-- Key features: bicyclic lactam core, ethyl ester, carboxylic acid, secondary amide, cyclohexane ring
-- Currently has 0 aromatic rings - needs modification to include ~2 aromatic rings
+Target: Osimertinib (SMILES: COc1cc(N(C)CCN(C)C)c(NC(=O)C=C)cc1Nc2nccc(n2)c3cn(C)c4ccccc34)
+- Task Type: optimization
+- Objective: EGFR tyrosine kinase inhibitor for NSCLC
+- Key Features: pyrimidine core, indole system, acrylamide warhead, tertiary amines
+- Similarity Threshold: 0.8 (ECFP6), 0.65 (FCFP4)
 
 Requirements:
-- Maintain structural similarity to perindopril
-- Incorporate approximately 2 aromatic rings into the structure
-- Preserve key pharmacophoric elements for ACE inhibition
-- Don't copy perindopril exactly
-- Maintain drug-like properties
+- Preserve pyrimidine-indole-acrylamide framework (SMARTS: c1cc2c(c(c1)Nc3nccc(n3)c4cn(c)c5ccccc45)C(=O)NC=C)
+- Target TPSA ~100 Å², LogP ~1
+- Ensure drug-like properties (MW 400-600, HBD 1-2, HBA 4-6)
+- Avoid exact replication of osimertinib
+- Validate core SMARTS with SmartsPatternTool
 
-Critical structural elements to preserve:
-- Bicyclic lactam system (proline-like structure)
-- Carboxylic acid group for zinc coordination
-- Secondary amide linkage
-- Ester functionality
-- Overall molecular framework
+Design Strategies:
+- Replace methoxy with hydroxyl or amino
+- Add polar substituents to indole or pyrimidine
+- Modify tertiary amine alkyl groups
+- Introduce nitrogen-containing heterocycles
 
-Design strategies for aromatic incorporation:
-- Replace cyclohexane ring with benzene ring
-- Add aromatic substituents to existing scaffold
-- Introduce phenyl groups as side chains
-- Replace aliphatic chains with aromatic rings
-- Create aromatic-containing analogs of key fragments
+Constraints:
+- Core SMARTS: c1cc2c(c(c1)Nc3nccc(n3)c4cn(c)c5ccccc45)C(=O)NC=C
+- Molecular Weight: 400-600 Da
+- LogP: ~1
+- TPSA: ~100 Å²""",
+        "target_smiles": "COc1cc(N(C)CCN(C)C)c(NC(=O)C=C)cc1Nc2nccc(n2)c3cn(C)c4ccccc34",
+        "task_type": "optimization",
+        "core_smarts": "c1cc2c(c(c1)Nc3nccc(n3)c4cn(c)c5ccccc45)C(=O)NC=C",
+        "similarity_threshold": {"ECFP6": 0.8, "FCFP4": 0.65},
+        "property_targets": {"MW": "400-600", "logP": "~1", "TPSA": "~100", "HBD": "1-2", "HBA": "4-6"}
+    },
 
-Example modifications:
-- Convert cyclohexane to benzene ring (1 aromatic ring)
-- Replace propyl chain with phenyl group (additional aromatic ring)
-- Add phenyl substituents to amide nitrogen
-- Introduce benzyl groups instead of ethyl groups
-- Create indoline or tetrahydroquinoline analogs
+    "perindopril_mpo": {
+        "prompt": """Design molecules similar to perindopril with approximately 2 aromatic rings.
 
-Pharmacological considerations:
-- Maintain ACE binding elements
-- Preserve zinc coordination capability
-- Keep appropriate molecular size and flexibility
-- Balance lipophilicity with aromatic content""",
-    "target_smiles": "O=C(OCC)C(NC(C(=O)N1C(C(=O)O)CC2CCCCC12)C)CCC"
-},
-"qed_optimization": {
-    "prompt": """Design molecules with maximum QED (Quantitative Estimation of Drug-likeness) score.
-
-Target: High QED score (close to 1.0)
-- QED combines multiple drug-likeness descriptors into a single score
-- Considers molecular weight, lipophilicity, polar surface area, rotatable bonds, aromatic rings, alerts
+Target: Perindopril (SMILES: O=C(OCC)C(NC(C(=O)N1C(C(=O)O)CC2CCCCC12)C)CCC)
+- Task Type: optimization
+- Objective: ACE inhibitor for hypertension
+- Key Features: bicyclic lactam, ethyl ester, carboxylic acid, secondary amide
+- Similarity Threshold: 0.65 (Tanimoto, ECFP4)
 
 Requirements:
-- Maximize QED score (target close to 1.0)
-- Create chemically realistic and synthetically feasible molecules
-- Balance all QED components optimally
-- Don't copy existing high-QED molecules exactly
+- Incorporate ~2 aromatic rings (e.g., replace cyclohexane with benzene)
+- Preserve bicyclic lactam and carboxylic acid
+- Ensure drug-like properties (MW 300-500, LogP 1-3, TPSA 60-100)
+- Avoid exact replication of perindopril
+- Validate SMILES with SmilesValidatorTool
 
-QED scoring factors to optimize:
-- Molecular Weight: 150-500 Da (optimal ~300 Da)
+Design Strategies:
+- Replace cyclohexane with benzene
+- Add phenyl group to propyl chain
+- Introduce benzyl substituents on amide
+- Use indoline or tetrahydroquinoline scaffolds
+
+Constraints:
+- Molecular Weight: 300-500 Da
+- LogP: 1-3
+- TPSA: 60-100 Å²
+- Essential Features: bicyclic lactam, carboxylic acid, 2 aromatic rings""",
+        "target_smiles": "O=C(OCC)C(NC(C(=O)N1C(C(=O)O)CC2CCCCC12)C)CCC",
+        "task_type": "optimization",
+        "similarity_threshold": 0.65,
+        "property_targets": {"MW": "300-500", "logP": "1-3", "TPSA": "60-100", "HBD": "1-2", "HBA": "4-6"}
+    },
+
+    "qed_optimization": {
+        "prompt": """Design molecules with maximum QED (Quantitative Estimation of Drug-likeness) score.
+
+Target: High QED score (~1.0)
+- Task Type: optimization
+- Objective: Optimize drug-likeness across multiple descriptors
+- Key Features: balanced MW, LogP, TPSA, rotatable bonds, aromatic rings
+
+Requirements:
+- Maximize QED score (0-1, target ~1.0)
+- Ensure drug-like properties (Lipinski's Rule)
+- Avoid reactive or toxic groups (validate with ToxicityCheckTool)
+- Create synthetically feasible molecules
+
+Design Strategies:
+- Use benzene, pyridine, or thiophene scaffolds
+- Include 1-2 aromatic rings with polar substituents
+- Add hydroxyl, amine, or amide groups for TPSA
+- Limit rotatable bonds (<10)
+
+Constraints:
+- Molecular Weight: 150-500 Da (optimal ~300)
 - LogP: 1-3 (optimal ~2.5)
-- Polar Surface Area: 20-130 Ų (optimal ~60 Ų)
-- Rotatable Bonds: 0-15 (optimal ~6)
-- Aromatic Rings: 1-4 (optimal ~2)
-- Structural Alerts: minimize problematic groups
+- TPSA: 20-130 Å² (optimal ~60)
+- Rotatable Bonds: 0-10
+- Aromatic Rings: 1-4""",
+        "target_smiles": None,
+        "task_type": "optimization",
+        "property_targets": {"MW": "150-500", "logP": "1-3", "TPSA": "20-130", "rotatable_bonds": "0-10",
+                             "aromatic_rings": "1-4"}
+    },
 
-Design strategies for high QED:
-- Use moderate-sized aromatic scaffolds (benzene, pyridine, thiophene)
-- Include 1-2 aromatic rings with appropriate substitution
-- Add polar groups for balanced hydrophilicity (OH, NH2, amide)
-- Keep molecular weight in optimal range (250-400 Da)
-- Limit rotatable bonds and flexibility
-- Avoid reactive or toxic functional groups
+    "ranolazine_mpo": {
+        "prompt": """Design molecules similar to ranolazine with optimized physicochemical properties and 1 fluorine atom.
 
-Example high-QED scaffolds:
-- Substituted benzenes with polar groups
-- Pyridine derivatives with amide/ester linkages
-- Thiophene compounds with hydroxyl/amino groups
-- Simple heterocycles with balanced properties
-- Phenol derivatives with moderate substitution
-
-Avoid:
-- Very large molecules (MW > 500)
-- Highly lipophilic compounds (LogP > 5)
-- Molecules with many rotatable bonds
-- Reactive groups (aldehydes, epoxides, etc.)
-- Multiple aromatic rings without polarity""",
-    "target_smiles": None
-},
-"ranolazine_mpo": {
-    "prompt": """Design molecules similar to ranolazine while optimizing specific physicochemical properties.
-
-Target: Ranolazine (COc1ccccc1OCC(O)CN2CCN(CC(=O)Nc3c(C)cccc3C)CC2)
-- Anti-anginal agent for chronic stable angina
-- Key features: methoxyphenyl ether, piperazine ring, secondary alcohol, amide linkage, dimethylaniline
+Target: Ranolazine (SMILES: COc1ccccc1OCC(O)CN2CCN(CC(=O)Nc3c(C)cccc3C)CC2)
+- Task Type: optimization
+- Objective: Anti-anginal agent for chronic stable angina
+- Key Features: methoxyphenyl ether, piperazine, secondary alcohol, amide, dimethylaniline
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
 
 Requirements:
-- Maintain structural similarity to ranolazine
-- Target TPSA around 95 Ų (topological polar surface area)
-- Aim for LogP around 7 (high lipophilicity)
-- Include approximately 1 fluorine atom
-- Don't copy ranolazine exactly
+- Include exactly 1 fluorine atom
+- Target TPSA ~95 Å², LogP ~7
+- Ensure drug-like properties (MW 400-600, HBD 1-3, HBA 4-6)
+- Avoid exact replication of ranolazine
+- Validate SMILES with SmilesValidatorTool
 
-Critical structural elements:
-- Methoxyphenyl ether system
-- Piperazine ring (6-membered N-heterocycle)
-- Secondary alcohol group
-- Amide bond connecting to aromatic ring
-- Dimethylaniline moiety
-- Flexible alkyl chain linkers
+Design Strategies:
+- Add fluorine to dimethylaniline or methoxyphenyl
+- Replace methoxy with polar groups to adjust TPSA
+- Modify piperazine substituents
+- Adjust linker chain to balance LogP
 
-Design strategies for property optimization:
-- Maintain core scaffold for similarity
-- Introduce fluorine for metabolic stability and lipophilicity
-- Balance polar groups (TPSA ~95) with high LogP (~7)
-- Consider fluorinated aromatic rings
-- Modify substituents while preserving key pharmacophore
+Constraints:
+- Molecular Weight: 400-600 Da
+- LogP: ~7
+- TPSA: ~95 Å²
+- Fluorine Count: 1
+- Essential Features: piperazine, amide, aromatic rings""",
+        "target_smiles": "COc1ccccc1OCC(O)CN2CCN(CC(=O)Nc3c(C)cccc3C)CC2",
+        "task_type": "optimization",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "400-600", "logP": "~7", "TPSA": "~95", "HBD": "1-3", "HBA": "4-6",
+                             "fluorine_count": 1}
+    },
 
-Example modifications:
-- Replace one methoxy with fluorine atom
-- Add fluorine to dimethylaniline ring
-- Introduce fluorinated alkyl chains
-- Replace hydroxyl with fluorinated groups
-- Modify piperazine with fluorinated substituents
+    "scaffold_hop": {
+        "prompt": """Design molecules via scaffold hopping, replacing the quinazoline core while preserving key decorations.
 
-Property considerations:
-- High LogP (7) requires significant lipophilic character
-- TPSA ~95 needs balanced polar surface area
-- Single fluorine atom for enhanced properties
-- Maintain ranolazine's therapeutic profile
-
-Fluorine incorporation strategies:
-- Fluorinated aromatic rings (4-fluorophenyl, 3-fluorophenyl)
-- Trifluoromethyl groups (but count as 3 F atoms)
-- Single fluorine substitution on aromatic rings
-- Fluorinated alkyl chains or ethers""",
-    "target_smiles": "COc1ccccc1OCC(O)CN2CCN(CC(=O)Nc3c(C)cccc3C)CC2"
-},
-"scaffold_hop": {
-    "prompt": """Design molecules by removing a specific scaffold while preserving key decorations (scaffold hopping).
-
-Target: Scaffold hopping from pharmacophore CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C
+Target: CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C
+- Task Type: scaffold_hopping
+- Objective: Kinase inhibitor with novel scaffold
+- Core SMARTS to Replace: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12 (quinazoline)
+- Decoration SMARTS to Preserve: [#6]-[#6]-[#6]-[#8]-[#6]~[#6]~[#6]~[#6]~[#6]-[#7]-c1ccc2ncsc2c1 (propoxy-benzothiazole)
+- Forbidden SMARTS: [CS([#6])(=O)=O], [#7]-c1ccc2ncsc2c1
+- Similarity Cap: 0.75 (Tanimoto, ECFP4)
 
 Requirements:
-- REMOVE scaffold matching SMARTS: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12 (quinazoline core)
-- PRESERVE decoration matching SMARTS: [#6]-[#6]-[#6]-[#8]-[#6]~[#6]~[#6]~[#6]~[#6]-[#7]-c1ccc2ncsc2c1 (propoxy-benzothiazole chain)
-- Maintain pharmacophore similarity (capped at 0.75)
-- Create drug-like molecules with novel scaffolds
+- Replace quinazoline with alternative heterocycles (e.g., pyrimidine, pyrazine)
+- Preserve propoxy-benzothiazole decoration
+- Avoid forbidden motifs (validate with SmartsPatternTool)
+- Ensure drug-like properties (MW 300-500, LogP 2-4, TPSA 60-100)
+- Validate new scaffold with SmartsPatternTool
 
-Scaffold to remove:
-- Quinazoline core system (bicyclic N-heterocycle)
-- This is the central scaffold that must be replaced
+Design Strategies:
+- Use pyrimidine, pyrazine, or benzimidazole cores
+- Maintain ether and sulfonamide groups
+- Vary benzothiazole substituents
+- Adjust propoxy chain length
 
-Decoration to preserve:
-- Propoxy chain (CCCOc-)
-- Benzothiazole moiety (-Nc1ccc2ncsc2c1)
-- The connecting aromatic system
-- Overall spatial arrangement of key pharmacophoric elements
+Constraints:
+- Core SMARTS to Replace: [#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12
+- Decoration SMARTS to Preserve: [#6]-[#6]-[#6]-[#8]-[#6]~[#6]~[#6]~[#6]~[#6]-[#7]-c1ccc2ncsc2c1
+- Forbidden SMARTS: [CS([#6])(=O)=O], [#7]-c1ccc2ncsc2c1
+- Molecular Weight: 300-500 Da
+- LogP: 2-4
+- TPSA: 60-100 Å²""",
+        "target_smiles": "CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C",
+        "task_type": "scaffold_hopping",
+        "core_smarts": "[#7]-c1n[c;h1]nc2[c;h1]c(-[#8])[c;h0][c;h1]c12",
+        "forbidden_smarts": ["CS([#6])(=O)=O", "[#7]-c1ccc2ncsc2c1"],
+        "similarity_cap": 0.75,
+        "property_targets": {"MW": "300-500", "logP": "2-4", "TPSA": "60-100", "HBD": "1-3", "HBA": "3-5"}
+    },
 
-Design strategies:
-- Replace quinazoline with alternative heterocycles (pyrimidine, pyrazine, triazine)
-- Use different bicyclic systems (benzimidazole, benzoxazole, quinoline)
-- Try monocyclic alternatives (pyrimidine, triazine, pyridine)
-- Maintain similar electronic properties and hydrogen bonding patterns
-- Preserve spatial orientation of decorations
+    "sitagliptin_mpo": {
+        "prompt": """
+    Design molecules similar to sitagliptin with the exact molecular formula C16H15F6N5O, maintaining key pharmacophoric features (trifluoromethyl, triazole, primary amine, fluorinated aromatic, amide groups). Optimize for properties evaluated by the Sitagliptin_MPO oracle, including similarity to sitagliptin (Tanimoto, ECFP4), molecular weight (MW), LogP, TPSA, HBD, and HBA. Ensure synthetic feasibility and drug-likeness.
+    Requirements:
+    - Exact molecular formula: C16H15F6N5O
+    - Similarity threshold: 0.7 (Tanimoto, ECFP4)
+    - Avoid exact replication of sitagliptin
+    - Validate SMILES and formula using MolecularFormulaValidatorTool
+    Design Strategies:
+    - Rearrange fluorine atoms on the aromatic ring
+    - Modify triazole substitution or position
+    - Adjust amine or amide connectivity
+    - Reposition trifluoromethyl group
+    Constraints:
+    - MW: 407.31 Da (exact)
+    - LogP: ~2.1
+    - TPSA: ~95.5 Å²
+    - HBD: 2
+    - HBA: 8
+    """,
+        "target_smiles": "Fc1cc(c(F)cc1F)CC(N)CC(=O)N3Cc2nnc(n2CC3)C(F)(F)F",
+        "task_type": "optimization",
+        "similarity_threshold": 0.7,
+        "molecular_formula": "C16H15F6N5O",
+        "property_targets": {
+            "MW": 407.31,
+            "LogP": 2.1,
+            "TPSA": 95.5,
+            "HBD": 2,
+            "HBA": 8
+        }
+    },
 
-Example scaffold replacements:
-- Pyrimidine core instead of quinazoline
-- Benzimidazole system
-- Pyrazine-based scaffolds
-- Triazine derivatives
-- Quinoline or isoquinoline variants
+    "thiothixene_similarity": {
+        "prompt": """Design molecules structurally similar to thiothixene, preserving the thioxanthene scaffold.
 
-Key considerations:
-- Maintain drug-like properties
-- Preserve binding interactions through bioisosteric replacement
-- Keep similar molecular size and shape
-- Ensure synthetic feasibility of new scaffold
-- Balance similarity (not too high, not too low)""",
-    "target_smiles": "CCCOc1cc2ncnc(Nc3ccc4ncsc4c3)c2cc1S(=O)(=O)C(C)(C)C"
-},
-"sitagliptin_mpo": {
-    "prompt": """Design molecules similar to sitagliptin while matching exact molecular formula and physicochemical properties.
-
-Target: Sitagliptin (Fc1cc(c(F)cc1F)CC(N)CC(=O)N3Cc2nnc(n2CC3)C(F)(F)F)
-- DPP-4 inhibitor for type 2 diabetes
-- Key features: trifluoromethyl group, triazole ring, primary amine, fluorinated aromatic ring, amide linkage
-
-Requirements:
-- Match exact molecular formula: C16H15F6N5O (no missing or extra atoms)
-- Maintain structural similarity to sitagliptin (Tanimoto ~0.7)
-- Target LogP similar to sitagliptin (~{round(sitagliptin_logP, 4)})
-- Target TPSA similar to sitagliptin (~{round(sitagliptin_TPSA, 4)} Ų)
-- Don't copy sitagliptin exactly
-
-Critical structural elements:
-- Trifluoromethyl group (CF3) - key for DPP-4 binding
-- Triazole ring system (1,2,4-triazole)
-- Primary amine group for activity
-- Fluorinated aromatic ring (trifluorophenyl)
-- Amide bond connecting fragments
-- Exact atom counts: C16, H15, F6, N5, O1
-
-Design constraints:
-- Must contain exactly 6 fluorine atoms
-- Must contain exactly 5 nitrogen atoms
-- Must contain exactly 1 oxygen atom
-- Maintain similar molecular complexity
-- Preserve key pharmacophoric elements
-
-Modification strategies:
-- Rearrange fluorine atoms on aromatic rings
-- Modify triazole ring position or substitution
-- Change amide linkage position
-- Alter alkyl chain connectivity
-- Reposition functional groups while maintaining formula
-
-Example approaches:
-- Move fluorines to different positions on phenyl ring
-- Change triazole substitution pattern
-- Modify amine position on alkyl chain
-- Rearrange trifluoromethyl group location
-- Alter connectivity between ring systems
-
-Property considerations:
-- LogP ~{round(sitagliptin_logP, 4)}: balance hydrophobic fluorines with polar groups
-- TPSA ~{round(sitagliptin_TPSA, 4)}: maintain similar polar surface area
-- Similarity ~0.7: moderate structural similarity without exact copying""",
-    "target_smiles": "Fc1cc(c(F)cc1F)CC(N)CC(=O)N3Cc2nnc(n2CC3)C(F)(F)F"
-},
-"thiothixene_similarity": {
-    "prompt": """Design molecules structurally similar to thiothixene while preserving core scaffold and pharmacophores.
-
-Target: Thiothixene (CN(C)S(=O)(=O)c1ccc2Sc3ccccc3C(=CCCN4CCN(C)CC4)c2c1)
-- Typical antipsychotic medication
-- Key features: thioxanthene core, piperazine ring, sulfonamide group, alkene linker
+Target: Thiothixene (SMILES: CN(C)S(=O)(=O)c1ccc2Sc3ccccc3C(=CCCN4CCN(C)CC4)c2c1)
+- Task Type: similarity_search
+- Objective: Antipsychotic for dopamine D2 receptor antagonism
+- Key Features: thioxanthene core, piperazine, sulfonamide, alkene linker
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
 
 Requirements:
-- Maintain structural similarity to thiothixene
-- Preserve core thioxanthene scaffold (dibenzothiopyran system)
-- Keep key pharmacophoric elements for antipsychotic activity
-- Don't copy thiothixene exactly
-- Maintain drug-like properties
+- Preserve thioxanthene core (SMARTS: c1cc2c(c(c1)S(=O)(=O)N(C)C)Sc3ccccc3C=C)
+- Maintain piperazine and sulfonamide
+- Ensure CNS penetration (TPSA 40-80, use BBBPermeantPredictionTool)
+- Avoid exact replication of thiothixene
+- Validate core SMARTS with SmartsPatternTool
 
-Critical structural elements:
-- Thioxanthene core (tricyclic system with sulfur)
-- Piperazine ring (N-methylpiperazine moiety)
-- Sulfonamide group (dimethylsulfonamide)
-- Alkene linker connecting fragments
-- Aromatic substitution patterns
+Design Strategies:
+- Vary piperazine substituents (e.g., ethyl instead of methyl)
+- Modify sulfonamide alkyl groups
+- Replace alkene with alkyl linker
+- Add halogens to aromatic rings
 
-Key pharmacophoric features:
-- Tricyclic aromatic system for dopamine receptor binding
-- Basic nitrogen (piperazine) for receptor interaction
-- Appropriate spatial arrangement of aromatic and basic centers
-- Lipophilic character for CNS penetration
+Constraints:
+- Core SMARTS: c1cc2c(c(c1)S(=O)(=O)N(C)C)Sc3ccccc3C=C
+- Molecular Weight: 400-600 Da
+- LogP: 2-5
+- TPSA: 40-80 Å²""",
+        "target_smiles": "CN(C)S(=O)(=O)c1ccc2Sc3ccccc3C(=CCCN4CCN(C)CC4)c2c1",
+        "task_type": "similarity_search",
+        "core_smarts": "c1cc2c(c(c1)S(=O)(=O)N(C)C)Sc3ccccc3C=C",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "400-600", "logP": "2-5", "TPSA": "40-80", "HBD": "0-2", "HBA": "3-5"}
+    },
 
-Possible modifications to consider:
-- Alter piperazine substituents (ethyl instead of methyl)
-- Modify sulfonamide group (different alkyl groups)
-- Change alkene to alkyl chain
-- Substitute aromatic rings with different groups
-- Vary linker chain length
-- Replace sulfur with oxygen (xanthene analogs)
+    "troglitazone_similarity": {
+        "prompt": """Design molecules structurally similar to troglitazone, preserving the thiazolidinedione pharmacophore.
 
-Example strategies:
-- N-ethylpiperazine instead of N-methylpiperazine
-- Diethylsulfonamide instead of dimethylsulfonamide
-- Saturated alkyl linker instead of alkene
-- Halogenated aromatic rings
-- Modified chain length between rings
-
-Maintain antipsychotic profile:
-- Dopamine D2 receptor antagonism
-- Appropriate CNS penetration
-- Similar molecular size and flexibility
-- Balanced lipophilicity and solubility""",
-    "target_smiles": "CN(C)S(=O)(=O)c1ccc2Sc3ccccc3C(=CCCN4CCN(C)CC4)c2c1"
-},
-"troglitazone_similarity": {
-    "prompt": """Design molecules structurally similar to troglitazone while preserving core scaffold and pharmacophores.
-
-Target: Troglitazone (Cc1c(C)c2OC(C)(COc3ccc(CC4SC(=O)NC4=O)cc3)CCc2c(C)c1O)
-- PPAR-γ agonist for type 2 diabetes (withdrawn due to hepatotoxicity)
-- Key features: thiazolidinedione ring, chroman core, phenolic hydroxyl, multiple methyl groups
+Target: Troglitazone (SMILES: Cc1c(C)c2OC(C)(COc3ccc(CC4SC(=O)NC4=O)cc3)CCc2c(C)c1O)
+- Task Type: similarity_search
+- Objective: PPAR-γ agonist for type 2 diabetes
+- Key Features: thiazolidinedione ring, chroman core, phenolic hydroxyl
+- Similarity Threshold: 0.7 (Tanimoto, ECFP4)
 
 Requirements:
-- Maintain structural similarity to troglitazone
-- Preserve core thiazolidinedione ring (essential for PPAR-γ activity)
-- Keep chroman scaffold or similar bicyclic system
-- Don't copy troglitazone exactly
-- Maintain drug-like properties
+- Preserve thiazolidinedione ring (SMARTS: c1cc(OC)cc(c1)CC2SC(=O)NC2=O)
+- Maintain chroman or similar bicyclic scaffold
+- Ensure drug-like properties (MW 400-600, LogP 2-5, TPSA 60-100)
+- Avoid hepatotoxic features (validate with ToxicityCheckTool)
+- Validate core SMARTS with SmartsPatternTool
 
-Critical structural elements:
-- Thiazolidinedione ring (2,4-thiazolidinedione) - essential pharmacophore
-- Chroman core (benzopyran system) - provides rigidity and orientation
-- Phenolic hydroxyl group - contributes to binding
-- Aromatic ether linkage connecting fragments
-- Multiple methyl substituents on chroman ring
+Design Strategies:
+- Vary methyl groups on chroman
+- Replace chroman with benzofuran or indane
+- Modify ether linker length
+- Add polar substituents for safety
 
-Key pharmacophoric features:
-- Thiazolidinedione for PPAR-γ receptor binding
-- Aromatic systems for hydrophobic interactions
-- Hydroxyl group for hydrogen bonding
-- Appropriate spatial arrangement of polar and nonpolar regions
-- Conformational flexibility in linker region
+Constraints:
+- Core SMARTS: c1cc(OC)cc(c1)CC2SC(=O)NC2=O
+- Molecular Weight: 400-600 Da
+- LogP: 2-5
+- TPSA: 60-100 Å²""",
+        "target_smiles": "Cc1c(C)c2OC(C)(COc3ccc(CC4SC(=O)NC4=O)cc3)CCc2c(C)c1O",
+        "task_type": "similarity_search",
+        "core_smarts": "c1cc(OC)cc(c1)CC2SC(=O)NC2=O",
+        "similarity_threshold": 0.7,
+        "property_targets": {"MW": "400-600", "logP": "2-5", "TPSA": "60-100", "HBD": "1-3", "HBA": "4-6"}
+    },
 
-Possible modifications to consider:
-- Alter methyl substitution patterns on chroman ring
-- Replace some methyl groups with ethyl or other alkyl groups
-- Modify the aromatic ether linker length
-- Substitute phenolic OH with other polar groups
-- Change chroman to related bicyclic systems (benzofuran, indane)
-- Vary thiazolidinedione substitution (but keep the ring intact)
+    "valsartan_smarts": {
+        "prompt": """
+    Design molecules containing the SMARTS pattern CN(C=O)Cc1ccc(c2ccccc2)cc1, targeting ARB-like antihypertensive molecules. Optimize for properties evaluated by the Valsartan_SMARTS oracle, including presence of the SMARTS pattern, MW, LogP, TPSA, HBD, HBA, and Bertz complexity. Ensure drug-like properties and synthetic feasibility.
+    Requirements:
+    - Must contain SMARTS: CN(C=O)Cc1ccc(c2ccccc2)cc1
+    - Validate SMILES with SmilesValidatorTool
+    Design Strategies:
+    - Extend biphenyl with polar groups (e.g., carboxylic acid, tetrazole)
+    - Add hydroxyl or amine substituents
+    - Incorporate heterocycles for complexity
+    - Balance LogP and TPSA
+    Constraints:
+    - MW: 300-600 Da
+    - LogP: ~2.0
+    - TPSA: ~95 Å²
+    - HBD: 1-3
+    - HBA: 3-5
+    - Bertz Complexity: ~800
+    """,
+        "core_smarts": "CN(C=O)Cc1ccc(c2ccccc2)cc1",
+        "task_type": "smarts_matching",
+        "property_targets": {
+            "MW": [300, 600],
+            "LogP": 2.0,
+            "TPSA": 95,
+            "HBD": [1, 3],
+            "HBA": [3, 5],
+            "Bertz Complexity": 800
+        }
+    },
 
-Example strategies:
-- Ethyl groups instead of some methyl groups
-- Different substitution pattern on chroman ring  
-- Modified linker chain length
-- Hydroxyl group in different position
-- Benzofuran instead of chroman core
-- Additional polar substituents for improved safety profile
+    "zaleplon_similarity": {
+        "prompt": """Design molecules similar to zaleplon with exact molecular formula C19H17N3O2.
 
-Safety considerations:
-- Avoid structural features associated with hepatotoxicity
-- Maintain PPAR-γ selectivity
-- Consider metabolic stability improvements
-- Balance efficacy with safety profile""",
-    "target_smiles": "Cc1c(C)c2OC(C)(COc3ccc(CC4SC(=O)NC4=O)cc3)CCc2c(C)c1O"
-},
-"valsartan_smarts": {
-    "prompt": """Design molecules containing a specific SMARTS pattern with optimized physicochemical properties.
-
-Target SMARTS pattern: CN(C=O)Cc1ccc(c2ccccc2)cc1
-- This represents a formamide group attached to a biphenylmethyl moiety
-- Similar to structural elements found in valsartan (ARB antihypertensive)
-
-Requirements:
-- MUST contain the exact SMARTS pattern: CN(C=O)Cc1ccc(c2ccccc2)cc1
-- Target LogP around 2.0 (moderate lipophilicity)
-- Target TPSA around 95 Ų (appropriate polar surface area)
-- Target Bertz complexity around 800 (moderate molecular complexity)
-- Create drug-like molecules with this core motif
-
-SMARTS pattern breakdown:
-- CN(C=O): N-methylformamide group
-- Cc1ccc(c2ccccc2)cc1: 4-phenylbenzyl group (biphenyl system with methyl linker)
-- Combined: N-methyl-N-(4-phenylbenzyl)formamide core
-
-Design strategies:
-- Build around the required SMARTS motif as core structure
-- Add substituents to achieve target LogP (~2.0)
-- Include polar groups to reach TPSA (~95)
-- Balance complexity to approach Bertz score (~800)
-- Consider additional aromatic rings, heteroatoms, or functional groups
-
-Property optimization approaches:
-- LogP ~2.0: balance hydrophobic aromatic systems with polar groups
-- TPSA ~95: include hydrogen bond donors/acceptors (OH, NH, C=O, etc.)
-- Bertz ~800: moderate molecular complexity with multiple ring systems
-- Maintain drug-like characteristics (MW 200-600, rotatable bonds <10)
-
-Example extensions:
-- Add carboxylic acid groups for polarity
-- Include hydroxyl or amino substituents
-- Incorporate additional heterocycles
-- Add ester or amide linkages
-- Consider tetrazole or other bioactive groups
-
-Structural considerations:
-- Preserve the biphenyl-formamide core exactly
-- Extend with compatible functional groups
-- Maintain synthetic feasibility
-- Consider metabolic stability
-- Balance all three property targets simultaneously""",
-    "target_smiles": None
-},
-"zaleplon_similarity": {
-    "prompt": """Design molecules similar to zaleplon while maintaining high structural similarity.
-
-Target: Zaleplon (O=C(C)N(CC)C1=CC=CC(C2=CC=NC3=C(C=NN23)C#N)=C1)
-- Non-benzodiazepine hypnotic for insomnia
-- Key features: pyrazolopyrimidine core, acetamide group, ethyl substitution, nitrile group
+Target: Zaleplon (SMILES: O=C(C)N(CC)C1=CC=CC(C2=CC=NC3=C(C=NN23)C#N)=C1)
+- Task Type: similarity_search
+- Objective: Non-benzodiazepine hypnotic for insomnia
+- Key Features: pyrazolopyrimidine core, acetamide, nitrile
+- Molecular Formula: C19H17N3O2 (validate with MolecularFormulaValidatorTool)
+- Similarity Threshold: 0.75 (Tanimoto, atom-pair fingerprint)
 
 Requirements:
-- Maintain the pyrazolopyrimidine bicyclic system
-- Preserve the amide linkage to phenyl ring
-- Keep molecular formula C19H17N3O2 exactly
-- Achieve high Tanimoto similarity using atom-pair fingerprints
-- Don't copy zaleplon exactly
+- Preserve pyrazolopyrimidine core (SMARTS: c1cc2c(c(c1)N(C)C(=O)C)n(c(c(n2)C#N)N=C)C)
+- Match exact formula: C19H17N3O2
+- Ensure drug-like properties (MW ~350, LogP 1-3, TPSA 60-100)
+- Avoid exact replication of zaleplon
+- Validate core SMARTS and formula
 
-Example modifications:
-- Vary alkyl groups on amide nitrogen
-- Modify substituents on phenyl ring
-- Change acetyl to other acyl groups
-- Replace ethyl with other small alkyl groups""",
-    "target_smiles": "O=C(C)N(CC)C1=CC=CC(C2=CC=NC3=C(C=NN23)C#N)=C1"
+Design Strategies:
+- Vary alkyl groups on amide (e.g., methyl instead of ethyl)
+- Modify phenyl ring substituents
+- Replace acetyl with propionyl
+- Adjust nitrile position
+
+Constraints:
+- Core SMARTS: c1cc2c(c(c1)N(C)C(=O)C)n(c(c(n2)C#N)N=C)C
+- Molecular Formula: C19H17N3O2
+- Molecular Weight: ~350 Da
+- LogP: 1-3
+- TPSA: 60-100 Å²""",
+        "target_smiles": "O=C(C)N(CC)C1=CC=CC(C2=CC=NC3=C(C=NN23)C#N)=C1",
+        "task_type": "similarity_search",
+        "core_smarts": "c1cc2c(c(c1)N(C)C(=O)C)n(c(c(n2)C#N)N=C)C",
+        "molecular_formula": "C19H17N3O2",
+        "similarity_threshold": 0.75,
+        "property_targets": {"MW": "~350", "logP": "1-3", "TPSA": "60-100", "HBD": "0-2", "HBA": "3-5"}
+    }
 }
 
-}
 
 def get_query_list():
-    """Get list of available queries"""
+    """Get list of available queries."""
     return list(IMPROVED_PMO_QUERIES.keys())
 
+
 def get_query_prompt(query_name):
-    """Get prompt for a query"""
+    """Get prompt for a query."""
     return IMPROVED_PMO_QUERIES.get(query_name, {}).get("prompt", "")
 
+
 def get_query_data(query_name):
-    """Get all data for a query"""
+    """Get all data for a query."""
     return IMPROVED_PMO_QUERIES.get(query_name, {})
-
-def validate_smiles():
-    """Check if SMILES are valid"""
-    for name, data in IMPROVED_PMO_QUERIES.items():
-        if "target_smiles" in data:
-            mol = Chem.MolFromSmiles(data["target_smiles"])
-            status = "✅" if mol else "❌"
-            print(f"{name}: {status}")
-
-if __name__ == "__main__":
-    print("Available queries:", get_query_list())
-    print("\nSMILES validation:")
-    validate_smiles()
