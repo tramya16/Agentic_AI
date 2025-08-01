@@ -1,3 +1,16 @@
+"""
+Citation:
+@article{kim2025mt,
+  title={MT-Mol: Multi Agent System with Tool-based Reasoning for Molecular Optimization},
+  author={Kim, Hyomin and Jang, Yunhui and Ahn, Sungsoo},
+  journal={arXiv preprint arXiv:2505.20820},
+  year={2025},
+  url={https://doi.org/10.48550/arXiv.2505.20820}
+}
+
+Reference: https://anonymous.4open.science/r/mt_mol-0448/README.md
+"""
+
 from rdkit import Chem
 from tools.smarts_pattern_tool import SmartsPatternTool
 from tools.molecular_formula_tool import MolecularFormulaValidatorTool
