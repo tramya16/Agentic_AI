@@ -11,7 +11,7 @@ import os
 
 
 class ExperimentOne:
-    def __init__(self, results_dir="Gemini2.0_Flash_Temp_1_Results"):
+    def __init__(self, results_dir="Gemini2.0_Flash_Temp_0.9_Results"):
         self.results_dir = Path(results_dir)
         # Ensure directory exists with proper permissions
         self.results_dir.mkdir(parents=True, exist_ok=True)
