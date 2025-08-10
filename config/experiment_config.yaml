@@ -1,0 +1,49 @@
+# Experiment Configuration
+experiment:
+  name: "molecular_generation_benchmark"
+  runs_per_query: 3
+  max_iterations: 3
+  top_n_analysis: 5
+
+# Model configurations
+models:
+  gemini_1_5_pro:
+    name: "gemini"
+    model_id: "gemini/gemini-1.5-pro"
+    temperatures: [0.9]
+
+  gemini_2_5_pro:
+    name: "gemini"
+    model_id: "gemini/gemini-2.5-pro"
+    temperatures: [0.9]
+
+  gemini_2_0_flash:
+    name: "gemini"
+    model_id: "gemini/gemini-2.0-flash"
+    temperatures: [0.9]
+
+  # deepseek_v3:
+  #   name: "deepseek"
+  #   model_id: "huggingface/deepseek-ai/DeepSeek-R1"
+  #   temperatures: [0.7, 0.9]
+
+# Query selection
+queries:
+  # Use "all" for all queries, or specify a list
+  selection: "all"
+  # selection:
+  #   ["albuterol_similarity", "celecoxib_rediscovery", "qed_optimization"]
+
+# Output settings
+output:
+  base_results_dir: "results"
+  save_individual_runs: true
+  save_visualizations: true
+  save_latex_tables: true
+
+# Oracle evaluation settings
+evaluation:
+  enabled: true
+  calculate_auc_top_k: 10
+  create_visualizations: true
+  create_latex_tables: true

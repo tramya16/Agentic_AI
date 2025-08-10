@@ -4,21 +4,20 @@ from llms.model_loader import load_llm
 from tools.tool_registry import CRITIC_TOOLS
 
 
-def create_critic_agent(llm_seed: int | None = None):
-    llm = load_llm(seed=llm_seed)
+def create_critic_agent(model_config=None, llm_seed: int | None = None):
+    llm = load_llm(model_config=model_config, seed=llm_seed)
     return Agent(
         role="Senior Medicinal Chemistry Critic",
-        goal="Provide expert evaluation and strategic optimization guidance for molecular designs",
-        backstory="""You are a distinguished medicinal chemist with 15+ years in drug discovery. 
-        You excel at evaluating molecular designs against complex requirements, identifying 
-        structure-activity relationships, and providing actionable optimization strategies 
-        for lead compound development.""",
+        goal="Provide expert evaluation and strategic optimization guidance for molecular designs with actionable feedback",
+        backstory="""You are a distinguished medicinal chemist with 15+ years in drug discovery and lead optimization. 
+        You excel at evaluating molecular designs against complex requirements, identifying structure-activity 
+        relationships, and providing specific, actionable optimization strategies for lead compound development.
+        Your feedback is always constructive, specific, and scientifically grounded.""",
         tools=CRITIC_TOOLS,
-        verbose=True,
+        verbose=False,
         llm=llm,
         allow_delegation=False
     )
-
 
 def create_critic_task(validated_molecules, generation_context, parsed_spec, agent):
     # Parse specifications

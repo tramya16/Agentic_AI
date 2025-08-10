@@ -4,14 +4,15 @@ from tools.tool_registry import GENERATOR_TOOLS
 import json
 
 
-def create_generator_agent(llm_seed: int):
-    llm = load_llm(seed=llm_seed)
+def create_generator_agent(model_config=None, llm_seed: int = None):
+    llm = load_llm(model_config=model_config, seed=llm_seed)
     return Agent(
-        role="Molecular Designer",
-        goal="Generate novel molecular structures using medicinal chemistry principles and iterative optimization",
-        backstory="""You are an expert medicinal chemist with deep knowledge of structure-activity 
+        role="Expert Molecular Designer",
+        goal="Generate novel molecular structures using systematic medicinal chemistry principles and iterative optimization",
+        backstory="""You are a distinguished medicinal chemist with deep expertise in structure-activity 
         relationships, pharmacophore modeling, and lead optimization. You apply systematic design 
-        strategies, incorporate SAR feedback, and ensure chemical feasibility in your molecular designs.""",
+        strategies, incorporate SAR feedback effectively, and ensure chemical feasibility in all molecular designs.
+        You have extensive experience in drug discovery and understand the nuances of molecular optimization.""",
         tools=GENERATOR_TOOLS,
         verbose=True,
         llm=llm,

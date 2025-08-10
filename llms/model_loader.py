@@ -1,5 +1,3 @@
-# llms/model_loader.py
-
 import os
 from crewai import LLM
 from dotenv import load_dotenv
@@ -7,50 +5,56 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def load_llm(model_name: str = None, seed: int = None, temperature: float = 1.0) -> LLM:
-    """Load an LLM with proper token limits and rate limiting"""
-
-    model_name = model_name or os.getenv("DEFAULT_LLM", "gemini")
-
+def load_llm(model_config: dict = None, seed: int = None) -> LLM:
+    """Load an LLM with model configuration"""
+    
+    if model_config is None:
+        # Fallback to default
+        model_config = {
+            "name": "gemini",
+            "model_id": "gemini/gemini-2.0-flash",
+            "temperature": 0.9
+        }
+    
     common_kwargs = {
-        "temperature": temperature,
-        "max_tokens": 2000,  # Reasonable limit
-        "timeout": 60,  # 1 minute timeout
+        "temperature": model_config.get("temperature", 0.9),
+        "max_tokens": 1300,
+        "timeout": 60,
     }
-
+    
     if seed is not None:
         common_kwargs["seed"] = seed
-
+    
+    model_name = model_config["name"]
+    model_id = model_config["model_id"]
+    
     if model_name == "gemini":
-        print("Loading Gemini with token limits...")
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment.")
         return LLM(
-            model="gemini/gemini-2.0-flash",
+            model=model_id,
             api_key=api_key,
             **common_kwargs
         )
-
+    
     elif model_name == "deepseek":
-        print("Loading Deepseek with token limits...")
         api_key = os.getenv("HF_API_KEY")
         if not api_key:
             raise ValueError("HF_API_KEY is not set in environment.")
         os.environ["HF_TOKEN"] = api_key
         return LLM(
-            model="huggingface/deepseek-ai/DeepSeek-R1",
+            model=model_id,
             api_key=api_key,
             **common_kwargs
         )
-
+    
     elif model_name == "ollama":
-        print("Loading Ollama with token limits...")
         return LLM(
-            model="ollama/llama3.2",
+            model=model_id,
             base_url="http://localhost:11434",
             **common_kwargs
         )
-
+    
     else:
         raise ValueError(f"Unsupported model name: {model_name}")

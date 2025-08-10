@@ -9,10 +9,15 @@ from utils.json_parsing_utils import safe_json_parse, format_generation_results
 
 
 class PipelineRunner:
-    def __init__(self, seed=None, delay_between_calls=3):
+    def __init__(self, seed=None, delay_between_calls=3, model_config=None):
         self.seed = seed
         self.delay = delay_between_calls
         self.debug_mode = True
+        self.model_config = model_config or {
+            "name": "gemini",
+            "model_id": "gemini/gemini-2.0-flash", 
+            "temperature": 0.9
+        }
 
     def _add_delay(self):
         """Add delay between API calls to prevent rate limiting"""
@@ -126,35 +131,35 @@ class PipelineRunner:
 
         return "\n\n".join(feedback_parts) if feedback_parts else None
 
-    # ... rest of the methods remain the same but simplified error handling
-
     def _extract_key_issues(self, critic_result):
-        """Extract more specific issues and patterns"""
+        """Extract key issues from critic response for history tracking"""
         if not isinstance(critic_result, dict):
             return []
 
         issues = []
 
-        # Extract specific weaknesses
+        # Extract common issues from ranked molecules
         if critic_result.get("ranked"):
             for mol in critic_result["ranked"]:
                 if mol.get("specific_weaknesses"):
                     issues.extend(mol["specific_weaknesses"])
 
-        # Extract from property guidance
-        if critic_result.get("property_optimization_guidance"):
-            for prop, guidance in critic_result["property_optimization_guidance"].items():
-                if isinstance(guidance, str) and "target" in guidance.lower():
-                    issues.append(f"optimize_{prop}")
+        # Extract from improvement suggestions
+        if critic_result.get("key_improvements_needed"):
+            improvements = critic_result["key_improvements_needed"]
+            if isinstance(improvements, list):
+                issues.extend(improvements)
 
-        # Extract from priorities
+        # Extract from next iteration priorities
         if critic_result.get("next_iteration_priorities"):
-            issues.extend(critic_result["next_iteration_priorities"])
+            priorities = critic_result["next_iteration_priorities"]
+            if isinstance(priorities, list):
+                issues.extend(priorities)
 
-        return list(set(issues))
+        return list(set(issues))  # Remove duplicates
 
     def _build_successful_features(self, generation_history):
-        """Extract successful features - FIXED as standalone function"""
+        """Extract successful features from history"""
         successful_features = []
 
         if not generation_history:
@@ -171,7 +176,7 @@ class PipelineRunner:
         return list(set(successful_features))
 
     def _extract_failed_patterns(self, generation_history):
-        """Extract patterns from failed molecules - FIXED"""
+        """Extract patterns from failed molecules"""
         failed_patterns = []
 
         if not generation_history:
@@ -190,33 +195,6 @@ class PipelineRunner:
                         failed_patterns.extend(weaknesses)
 
         return list(set(failed_patterns))
-
-    def _extract_key_issues(self, critic_result):
-        """Extract key issues from critic response for history tracking"""
-        if not isinstance(critic_result, dict):
-            return []
-
-        issues = []
-
-        # Extract common issues from ranked molecules
-        if critic_result.get("ranked"):
-            for mol in critic_result["ranked"]:
-                if mol.get("weaknesses"):
-                    issues.extend(mol["weaknesses"])
-
-        # Extract from improvement suggestions
-        if critic_result.get("key_improvements_needed"):
-            improvements = critic_result["key_improvements_needed"]
-            if isinstance(improvements, list):
-                issues.extend(improvements)
-
-        # Extract from specific suggestions
-        if critic_result.get("specific_suggestions"):
-            suggestions = critic_result["specific_suggestions"]
-            if isinstance(suggestions, list):
-                issues.extend(suggestions)
-
-        return list(set(issues))  # Remove duplicates
 
     def _summarize_generation_for_history(self, formatted_gen_results):
         """Create a concise summary of generation results for history"""
@@ -257,7 +235,7 @@ class PipelineRunner:
 
             # Step 1: Parse
             print("Step 1: Parsing query...")
-            parser = create_parser_agent(llm_seed=self.seed)
+            parser = create_parser_agent(model_config=self.model_config, llm_seed=self.seed)
             parse_task = create_parsing_task(user_input, parser)
             parser_crew = Crew(agents=[parser], tasks=[parse_task], verbose=False)
             parser_result = parser_crew.kickoff().raw
@@ -266,7 +244,7 @@ class PipelineRunner:
 
             # Step 2: Generate
             print("Step 2: Generating candidates...")
-            generator = create_generator_agent(llm_seed=self.seed)
+            generator = create_generator_agent(model_config=self.model_config, llm_seed=self.seed)
             gen_task = create_generation_task(json.dumps(parsed_spec), generator)
             generator_crew = Crew(agents=[generator], tasks=[gen_task], verbose=False)
             generator_result = self._run_agent_with_retry(generator_crew)
@@ -293,7 +271,7 @@ class PipelineRunner:
 
             # Step 3: Validate
             print("Step 3: Validating molecules...")
-            validator = create_validator_agent(llm_seed=self.seed)
+            validator = create_validator_agent(model_config=self.model_config, llm_seed=self.seed)
             val_task = create_validation_task(
                 all_generated_smiles,
                 json.dumps(parsed_spec),
@@ -335,14 +313,14 @@ class PipelineRunner:
             print(f"❌ Single-shot pipeline failed: {e}")
             return {"error": str(e), "valid": [], "invalid": [], "total_generated": 0}
 
-    def run_iterative(self, user_input: str, max_iterations=3):  # Reduced iterations
+    def run_iterative(self, user_input: str, max_iterations=3):
         """Run iterative pipeline with better error handling"""
         try:
             print("🔄 Starting iterative pipeline...")
 
             # Step 1: Parse (once)
             print("Step 1: Parsing query...")
-            parser = create_parser_agent(llm_seed=self.seed)
+            parser = create_parser_agent(model_config=self.model_config, llm_seed=self.seed)
             parse_task = create_parsing_task(user_input, parser)
             parser_crew = Crew(agents=[parser], tasks=[parse_task], verbose=False)
 
@@ -366,7 +344,7 @@ class PipelineRunner:
                 try:
                     # Step 2: Generate with timeout protection
                     print("Step 2: Generating candidates...")
-                    generator = create_generator_agent(llm_seed=self.seed)
+                    generator = create_generator_agent(model_config=self.model_config, llm_seed=self.seed)
                     gen_task = create_generation_task(
                         json.dumps(parsed_spec),
                         generator,
@@ -394,7 +372,7 @@ class PipelineRunner:
                     # Step 3: Validate with error handling
                     print("Step 3: Validating molecules...")
                     try:
-                        validator = create_validator_agent(llm_seed=self.seed)
+                        validator = create_validator_agent(model_config=self.model_config, llm_seed=self.seed)
                         val_task = create_validation_task(all_generated_smiles, json.dumps(parsed_spec), validator)
                         validator_crew = Crew(agents=[validator], tasks=[val_task], verbose=False)
                         validator_result = self._run_agent_with_retry(validator_crew)
@@ -411,7 +389,7 @@ class PipelineRunner:
                     # Step 4: Critic with error handling
                     print("Step 4: Getting critic feedback...")
                     try:
-                        critic = create_critic_agent(llm_seed=self.seed)
+                        critic = create_critic_agent(model_config=self.model_config, llm_seed=self.seed)
                         detailed_results = formatted_gen_results.get("detailed_results", [])
                         critic_task = create_critic_task(
                             json.dumps(validated),
@@ -496,7 +474,7 @@ class PipelineRunner:
             print(f"❌ Iterative pipeline failed: {e}")
             return {"error": str(e), "valid": [], "invalid": [], "total_generated": 0}
 
-    def _run_agent_with_retry(self, crew, max_retries=2):  # Reduced retries
+    def _run_agent_with_retry(self, crew, max_retries=2):
         """Run agent with simplified retry logic"""
         for attempt in range(max_retries):
             try:
