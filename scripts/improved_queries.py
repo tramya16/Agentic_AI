@@ -653,7 +653,7 @@ Constraints:
         }
     },
 
-    "thiothixene_similarity": {
+    "thiothixene_rediscovery": {
         "prompt": """Design molecules structurally similar to thiothixene, preserving the thioxanthene scaffold.
 
 Target: Thiothixene (SMILES: CN(C)S(=O)(=O)c1ccc2Sc3ccccc3C(=CCCN4CCN(C)CC4)c2c1)
@@ -687,7 +687,7 @@ Constraints:
         "property_targets": {"MW": "400-600", "logP": "2-5", "TPSA": "40-80", "HBD": "0-2", "HBA": "3-5"}
     },
 
-    "troglitazone_similarity": {
+    "troglitazone_rediscovery": {
         "prompt": """Design molecules structurally similar to troglitazone, preserving the thiazolidinedione pharmacophore.
 
 Target: Troglitazone (SMILES: Cc1c(C)c2OC(C)(COc3ccc(CC4SC(=O)NC4=O)cc3)CCc2c(C)c1O)

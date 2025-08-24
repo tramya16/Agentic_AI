@@ -9,10 +9,11 @@ from utils.json_parsing_utils import safe_json_parse, format_generation_results
 
 
 class PipelineRunner:
-    def __init__(self, seed=None, delay_between_calls=3):
+    def __init__(self, seed=None, delay_between_calls=3, model_name="gemini_2.0_flash"):
         self.seed = seed
         self.delay = delay_between_calls
         self.debug_mode = True
+        self.model_name=model_name
 
     def _add_delay(self):
         """Add delay between API calls to prevent rate limiting"""
@@ -126,7 +127,6 @@ class PipelineRunner:
 
         return "\n\n".join(feedback_parts) if feedback_parts else None
 
-    # ... rest of the methods remain the same but simplified error handling
 
     def _extract_key_issues(self, critic_result):
         """Extract more specific issues and patterns"""
@@ -257,7 +257,7 @@ class PipelineRunner:
 
             # Step 1: Parse
             print("Step 1: Parsing query...")
-            parser = create_parser_agent(llm_seed=self.seed)
+            parser = create_parser_agent(llm_seed=self.seed,model_name=self.model_name)
             parse_task = create_parsing_task(user_input, parser)
             parser_crew = Crew(agents=[parser], tasks=[parse_task], verbose=False)
             parser_result = parser_crew.kickoff().raw
@@ -266,7 +266,7 @@ class PipelineRunner:
 
             # Step 2: Generate
             print("Step 2: Generating candidates...")
-            generator = create_generator_agent(llm_seed=self.seed)
+            generator = create_generator_agent(llm_seed=self.seed,model_name=self.model_name)
             gen_task = create_generation_task(json.dumps(parsed_spec), generator)
             generator_crew = Crew(agents=[generator], tasks=[gen_task], verbose=False)
             generator_result = self._run_agent_with_retry(generator_crew)
@@ -293,7 +293,7 @@ class PipelineRunner:
 
             # Step 3: Validate
             print("Step 3: Validating molecules...")
-            validator = create_validator_agent(llm_seed=self.seed)
+            validator = create_validator_agent(llm_seed=self.seed,model_name=self.model_name)
             val_task = create_validation_task(
                 all_generated_smiles,
                 json.dumps(parsed_spec),
@@ -342,7 +342,7 @@ class PipelineRunner:
 
             # Step 1: Parse (once)
             print("Step 1: Parsing query...")
-            parser = create_parser_agent(llm_seed=self.seed)
+            parser = create_parser_agent(llm_seed=self.seed,model_name=self.model_name)
             parse_task = create_parsing_task(user_input, parser)
             parser_crew = Crew(agents=[parser], tasks=[parse_task], verbose=False)
 
@@ -366,7 +366,7 @@ class PipelineRunner:
                 try:
                     # Step 2: Generate with timeout protection
                     print("Step 2: Generating candidates...")
-                    generator = create_generator_agent(llm_seed=self.seed)
+                    generator = create_generator_agent(llm_seed=self.seed,model_name=self.model_name)
                     gen_task = create_generation_task(
                         json.dumps(parsed_spec),
                         generator,
@@ -394,7 +394,7 @@ class PipelineRunner:
                     # Step 3: Validate with error handling
                     print("Step 3: Validating molecules...")
                     try:
-                        validator = create_validator_agent(llm_seed=self.seed)
+                        validator = create_validator_agent(llm_seed=self.seed,model_name=self.model_name)
                         val_task = create_validation_task(all_generated_smiles, json.dumps(parsed_spec), validator)
                         validator_crew = Crew(agents=[validator], tasks=[val_task], verbose=False)
                         validator_result = self._run_agent_with_retry(validator_crew)
@@ -411,7 +411,7 @@ class PipelineRunner:
                     # Step 4: Critic with error handling
                     print("Step 4: Getting critic feedback...")
                     try:
-                        critic = create_critic_agent(llm_seed=self.seed)
+                        critic = create_critic_agent(llm_seed=self.seed,model_name=self.model_name)
                         detailed_results = formatted_gen_results.get("detailed_results", [])
                         critic_task = create_critic_task(
                             json.dumps(validated),

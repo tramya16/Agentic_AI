@@ -4,18 +4,19 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from pipeline_runner import PipelineRunner
-from improved_queries import get_query_data,get_query_list
-from molecular_metrics import MolecularMetrics, MetricsVisualizer
+from .improved_queries import get_query_data,get_query_list
+from .molecular_metrics import MolecularMetrics, MetricsVisualizer
+from config import ExperimentConfig
 import matplotlib.pyplot as plt
 import os
 
 
 class ExperimentOne:
-    def __init__(self, results_dir="Gemini2.0_Flash_Temp_0.9_Results"):
+    def __init__(self, results_dir="results/Gemini2.0_Flash_Temp_0.9_Results", model_name="gemini_2.0_flash"):
         self.results_dir = Path(results_dir)
         # Ensure directory exists with proper permissions
         self.results_dir.mkdir(parents=True, exist_ok=True)
-
+        self.model_name=model_name
         # Verify directory is writable
         if not os.access(self.results_dir, os.W_OK):
             raise PermissionError(f"Cannot write to directory: {self.results_dir}")
@@ -23,7 +24,7 @@ class ExperimentOne:
         self.metrics_calculator = MolecularMetrics()
         self.visualizer = MetricsVisualizer()
 
-        print(f"📁 Results directory: {self.results_dir.absolute()}")
+        print(f"Results directory: {self.results_dir.absolute()}")
 
     def run_single_query_experiment(self, query_name, query_data, runs=3, top_n=5):
         """Run improved experiment for a single query with comprehensive metrics"""
@@ -39,7 +40,7 @@ class ExperimentOne:
 
         for run in range(runs):
             seed = random.randint(0, 2 ** 32 - 1)
-            runner = PipelineRunner(seed=seed)
+            runner = PipelineRunner(seed=seed,model_name=self.model_name)
 
             print(f"  Run {run + 1}/{runs} (seed: {seed})")
 
@@ -396,7 +397,7 @@ class ExperimentOne:
 
         # Generate visualizations with safe saving
         if save_plots:
-            print(f"🎨 Creating visualizations for {query_name}...")
+            print(f"Creating visualizations for {query_name}...")
 
             try:
                 # Individual pipeline plots
@@ -433,7 +434,7 @@ class ExperimentOne:
                 )
                 plt.close(fig3)
 
-                print(f"✅ All visualizations created for {query_name}")
+                print(f"All visualizations created for {query_name}")
 
                 fig4 = self.visualizer.plot_top_n_overlap_analysis(
                     top_n_overlap,
@@ -446,9 +447,9 @@ class ExperimentOne:
                 )
                 plt.close(fig4)
 
-                print(f"✅ All visualizations created for {query_name}")
+                print(f"All visualizations created for {query_name}")
             except Exception as e:
-                print(f"⚠️ Error creating visualizations for {query_name}: {e}")
+                print(f"Error creating visualizations for {query_name}: {e}")
 
             finally:
                 plt.close('all')  # Clean up any remaining figures
@@ -475,11 +476,11 @@ class ExperimentOne:
         all_results = []
         all_analyses = []
 
-        print(f"🚀 Starting comprehensive experiment with {len(query_names)} queries")
-        print(f"📋 Queries: {query_names}")
-        print(f"🔄 Runs per query: {runs}")
-        print(f"⏰ Timestamp: {timestamp}")
-        print(f"📁 Results directory: {self.results_dir.absolute()}")
+        print(f"Starting comprehensive experiment with {len(query_names)} queries")
+        print(f"Queries: {query_names}")
+        print(f"Runs per query: {runs}")
+        print(f"Timestamp: {timestamp}")
+        print(f"Results directory: {self.results_dir.absolute()}")
 
         for i, query_name in enumerate(query_names):
             print(f"\n{'=' * 60}")
@@ -506,16 +507,16 @@ class ExperimentOne:
 
                     with open(result_file, 'w') as f:
                         json.dump(experiment_results, f, indent=2, default=str)
-                    print(f"✅ Saved detailed results: {result_file}")
+                    print(f"Saved detailed results: {result_file}")
 
                 except Exception as e:
-                    print(f"⚠️ Failed to save detailed results for {query_name}: {e}")
+                    print(f"Failed to save detailed results for {query_name}: {e}")
 
                 # Print summary
                 single_comprehensive = analysis["single_shot_comprehensive"]
                 iterative_comprehensive = analysis["iterative_comprehensive"]
 
-                print(f"\n📊 Results Summary for {query_name}:")
+                print(f"\nResults Summary for {query_name}:")
                 print(f"Single-shot - Generated: {single_comprehensive['molecule_tracking']['total_generated']}, "
                       f"Valid: {single_comprehensive['molecule_tracking']['total_valid']}, "
                       f"Invalid: {single_comprehensive['molecule_tracking']['total_invalid']}")
@@ -524,7 +525,7 @@ class ExperimentOne:
                       f"Invalid: {iterative_comprehensive['molecule_tracking']['total_invalid']}")
 
             except Exception as e:
-                print(f"❌ Failed to process query {query_name}: {e}")
+                print(f"Failed to process query {query_name}: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
@@ -546,17 +547,17 @@ class ExperimentOne:
 
             with open(summary_file, 'w') as f:
                 json.dump(summary_data, f, indent=2, default=str)
-            print(f"✅ Saved comprehensive summary: {summary_file}")
+            print(f"Saved comprehensive summary: {summary_file}")
 
         except Exception as e:
-            print(f"⚠️ Failed to save comprehensive summary: {e}")
+            print(f"Failed to save comprehensive summary: {e}")
 
         # Generate final summary table
         if all_analyses:
             try:
                 self.generate_comprehensive_summary_table(all_analyses, timestamp)
             except Exception as e:
-                print(f"⚠️ Failed to generate summary table: {e}")
+                print(f"Failed to generate summary table: {e}")
 
         return all_results, all_analyses
 
@@ -684,18 +685,18 @@ class ExperimentOne:
 
             with open(summary_file, 'w') as f:
                 f.write('\n'.join(summary_lines))
-            print(f"✅ Saved summary table: {summary_file}")
+            print(f"Saved summary table: {summary_file}")
 
         except Exception as e:
-            print(f"⚠️ Failed to save summary table: {e}")
+            print(f"Failed to save summary table: {e}")
             # Try saving to current directory
             try:
                 alt_file = Path.cwd() / f"summary_table_{timestamp}.txt"
                 with open(alt_file, 'w') as f:
                     f.write('\n'.join(summary_lines))
-                print(f"✅ Saved summary table to alternative location: {alt_file}")
+                print(f"Saved summary table to alternative location: {alt_file}")
             except Exception as e2:
-                print(f"❌ Failed to save summary table anywhere: {e2}")
+                print(f"Failed to save summary table anywhere: {e2}")
 
         # Print to console
         print("\n" + '\n'.join(summary_lines))
@@ -704,20 +705,21 @@ class ExperimentOne:
 if __name__ == "__main__":
     experiment = ExperimentOne()
 
-    test_queries =get_query_list()
+    test_queries =()
 
     try:
         print("🚀 Starting comprehensive molecular generation experiment...")
         results, analyses = experiment.run_comprehensive_experiment(
-            query_names=test_queries,
-            runs=3
+            query_names=ExperimentConfig.QUERY_LIST,
+            runs=ExperimentConfig.RUNS_PER_QUERY,
+            top_n=ExperimentConfig.TOP_N
         )
-        print("\n🎉 Comprehensive experiment completed successfully!")
-        print(f"📊 Results saved in: {experiment.results_dir}")
-        print(f"📈 Visualizations generated for each query")
+        print("\n Comprehensive experiment completed successfully!")
+        print(f"Results saved in: {experiment.results_dir}")
+        print(f"Visualizations generated for each query")
 
     except Exception as e:
-        print(f"❌ Experiment failed: {e}")
+        print(f"Experiment failed: {e}")
         import traceback
 
         traceback.print_exc()

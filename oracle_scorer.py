@@ -38,34 +38,34 @@ COMPLETE_ORACLE_MAPPING = {
     "ranolazine_mpo": "Ranolazine_MPO",
     "scaffold_hop": "Scaffold Hop",
     "sitagliptin_mpo": "Sitagliptin_MPO",
-    "thiothixene_similarity": "Thiothixene_Rediscovery",
-    "troglitazone_similarity": "Troglitazone_Rediscovery",
+    "thiothixene_rediscovery": "Thiothixene_Rediscovery",
+    "troglitazone_rediscovery": "Troglitazone_Rediscovery",
     "valsartan_smarts": "Valsartan_SMARTS",
     "zaleplon_similarity": "Zaleplon_MPO"
 }
 
 
 class ComprehensiveOracleEvaluator:
-    def __init__(self, results_dir="improved_experiment_results"):
+    def __init__(self, results_dir="results"):
         self.results_dir = Path(results_dir)
         self.oracles = {}
         self.load_all_oracles()
 
     def load_all_oracles(self):
         """Load all TDC oracles"""
-        print("🔮 Loading TDC Oracle models...")
+        print("Loading TDC Oracle models...")
 
         for query_name, oracle_name in COMPLETE_ORACLE_MAPPING.items():
             try:
                 oracle = Oracle(name=oracle_name)
                 self.oracles[query_name] = oracle
-                print(f"✅ Loaded {oracle_name} for {query_name}")
+                print(f"Loaded {oracle_name} for {query_name}")
             except Exception as e:
-                print(f"❌ Failed to load {oracle_name}: {e}")
+                print(f"Failed to load {oracle_name}: {e}")
                 self.oracles[query_name] = None
 
         print(
-            f"\n📊 Successfully loaded {len([o for o in self.oracles.values() if o is not None])}/{len(COMPLETE_ORACLE_MAPPING)} oracles")
+            f"\nSuccessfully loaded {len([o for o in self.oracles.values() if o is not None])}/{len(COMPLETE_ORACLE_MAPPING)} oracles")
 
     def score_molecule(self, smiles, query_name):
         """Score a single molecule using TDC oracle"""
@@ -76,7 +76,7 @@ class ComprehensiveOracleEvaluator:
             score = self.oracles[query_name](smiles)
             return float(score) if score is not None else 0.0
         except Exception as e:
-            print(f"⚠️ Oracle scoring failed for {smiles}: {e}")
+            print(f"Oracle scoring failed for {smiles}: {e}")
             return 0.0
 
     def calculate_molecular_properties(self, smiles):
@@ -119,8 +119,8 @@ class ComprehensiveOracleEvaluator:
 
     def extract_experiment_results(self):
         """Extract results from experiment files"""
-        print(f"\n📁 Extracting results from {self.results_dir}...")
-
+        print(f"\nExtracting results from {self.results_dir}...")
+        print(self.results_dir)
         all_results = defaultdict(lambda: {"single_shot": [], "iterative": []})
 
         for file_path in self.results_dir.glob("*_detailed_*.json"):
@@ -129,7 +129,7 @@ class ComprehensiveOracleEvaluator:
                     data = json.load(f)
 
                 query_name = data.get("query_name", "unknown")
-                print(f"📄 Processing {file_path.name} for query: {query_name}")
+                print(f"Processing {file_path.name} for query: {query_name}")
 
                 # Extract single-shot results
                 for run_data in data.get("single_shot", []):
@@ -154,18 +154,18 @@ class ComprehensiveOracleEvaluator:
                             })
 
             except Exception as e:
-                print(f"⚠️ Error processing {file_path}: {e}")
+                print(f"Error processing {file_path}: {e}")
 
         return dict(all_results)
 
     def evaluate_query_results(self, query_name, query_results):
         """Evaluate results for a single query"""
         if query_name not in self.oracles or self.oracles[query_name] is None:
-            print(f"❌ No oracle available for {query_name}")
+            print(f"No oracle available for {query_name}")
             return None
 
         oracle_name = COMPLETE_ORACLE_MAPPING[query_name]
-        print(f"\n🎯 Evaluating {query_name} with {oracle_name}")
+        print(f"\nEvaluating {query_name} with {oracle_name}")
         print("=" * 60)
 
         evaluation_results = {
@@ -176,7 +176,7 @@ class ComprehensiveOracleEvaluator:
         }
 
         # Evaluate single-shot runs
-        print(f"📊 Single-shot evaluation ({len(query_results['single_shot'])} runs):")
+        print(f"Single-shot evaluation ({len(query_results['single_shot'])} runs):")
         for run_data in query_results["single_shot"]:
             scored_molecules = []
 
@@ -219,7 +219,7 @@ class ComprehensiveOracleEvaluator:
                       f"Max: {max(scores):.4f}")
 
         # Evaluate iterative runs
-        print(f"📊 Iterative evaluation ({len(query_results['iterative'])} runs):")
+        print(f"Iterative evaluation ({len(query_results['iterative'])} runs):")
         for run_data in query_results["iterative"]:
             scored_molecules = []
 
@@ -263,9 +263,501 @@ class ComprehensiveOracleEvaluator:
 
         return evaluation_results
 
+    def create_clean_visualizations(self, all_evaluations):
+        """Create clean, focused visualizations"""
+        print("\nCreating clean visualizations...")
+
+        # Create visualization directory
+        viz_dir = self.results_dir / "visualizations"
+        viz_dir.mkdir(exist_ok=True)
+
+        # Prepare data
+        plot_data = []
+        auc_data = []
+
+        for query_name, eval_data in all_evaluations.items():
+            if eval_data is None:
+                continue
+
+            for pipeline in ['single_shot', 'iterative']:
+                pipeline_name = pipeline.replace('_', '-').title()
+
+                for run in eval_data[pipeline]['runs']:
+                    # Individual molecule data
+                    for mol in run['molecules']:
+                        plot_data.append({
+                            'Query': query_name,
+                            'Pipeline': pipeline_name,
+                            'Run': run['run'],
+                            'Oracle_Score': mol['Oracle_Score'],
+                        })
+
+                    # AUC data
+                    auc_data.append({
+                        'Query': query_name,
+                        'Pipeline': pipeline_name,
+                        'Run': run['run'],
+                        'AUC_Top10': run['auc_top_10'],
+                        'Top10_Mean': run['top_10_mean'],
+                        'Max_Score': run['max_score'],
+                        'N_Molecules': len(run['molecules'])
+                    })
+
+        if not plot_data:
+            print("No data for visualization")
+            return None, None
+
+        df = pd.DataFrame(plot_data)
+        auc_df = pd.DataFrame(auc_data)
+
+        # 1. AUC Performance Plot with Error Bars
+        self._create_auc_performance_plot(auc_df, viz_dir)
+        self._create_auc_performance_plot_horizontal_fixed(auc_df,viz_dir)
+        # 2. Query Performance Heatmap
+        self._create_query_performance_plot(auc_df, viz_dir)
+
+        # 3. Score Distribution Plot
+        self._create_score_distribution_plot(df, viz_dir)
+
+        # 4. Pipeline Efficiency Plot
+        self._create_pipeline_efficiency_plot(auc_df, viz_dir)
+
+        print(f"Visualizations saved to: {viz_dir}")
+        return df, auc_df
+
+    def _create_auc_performance_plot(self, auc_df, viz_dir):
+        """Create a clean AUC performance plot with proper bar alignment"""
+        plt.figure(figsize=(18, 10))
+
+        # Calculate summary statistics
+        auc_summary = auc_df.groupby(['Query', 'Pipeline']).agg({
+            'AUC_Top10': ['mean', 'std', 'count']
+        }).round(4)
+        auc_summary.columns = ['AUC_Mean', 'AUC_Std', 'Count']
+        auc_summary = auc_summary.reset_index()
+
+        # Sort by average AUC across both pipelines for better visualization
+        query_order = auc_summary.groupby('Query')['AUC_Mean'].mean().sort_values(ascending=False).index
+
+        # Prepare data for plotting
+        queries = list(query_order)
+        n_queries = len(queries)
+
+        # Set up positions
+        x_pos = np.arange(n_queries)
+        width = 0.35
+
+        # Separate data by pipeline
+        ss_data = []
+        it_data = []
+        ss_errors = []
+        it_errors = []
+
+        for query in queries:
+            # Single-Shot data
+            ss_row = auc_summary[(auc_summary['Query'] == query) & (auc_summary['Pipeline'] == 'Single-Shot')]
+            if len(ss_row) > 0:
+                ss_data.append(ss_row['AUC_Mean'].iloc[0])
+                ss_errors.append(ss_row['AUC_Std'].iloc[0])
+            else:
+                ss_data.append(0.0)
+                ss_errors.append(0.0)
+
+            # Iterative data
+            it_row = auc_summary[(auc_summary['Query'] == query) & (auc_summary['Pipeline'] == 'Iterative')]
+            if len(it_row) > 0:
+                it_data.append(it_row['AUC_Mean'].iloc[0])
+                it_errors.append(it_row['AUC_Std'].iloc[0])
+            else:
+                it_data.append(0.0)
+                it_errors.append(0.0)
+
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(18, 10))
+
+        # Create bars
+        bars1 = ax.bar(x_pos - width / 2, ss_data, width, label='Single-Shot',
+                       color='#ff7f0e', alpha=0.8, capsize=5)
+        bars2 = ax.bar(x_pos + width / 2, it_data, width, label='Iterative',
+                       color='#1f77b4', alpha=0.8, capsize=5)
+
+        # Add error bars
+        ax.errorbar(x_pos - width / 2, ss_data, yerr=ss_errors, fmt='none',
+                    color='black', capsize=4, capthick=1, elinewidth=1)
+        ax.errorbar(x_pos + width / 2, it_data, yerr=it_errors, fmt='none',
+                    color='black', capsize=4, capthick=1, elinewidth=1)
+
+        # Add value labels on bars (only for non-zero values)
+        for i, (bar, val, err) in enumerate(zip(bars1, ss_data, ss_errors)):
+            if val > 0.001:  # Only show labels for meaningful values
+                ax.text(bar.get_x() + bar.get_width() / 2, val + err + 0.02,
+                        f'{val:.3f}', ha='center', va='bottom',
+                        fontsize=8, fontweight='bold', rotation=0)
+
+        for i, (bar, val, err) in enumerate(zip(bars2, it_data, it_errors)):
+            if val > 0.001:  # Only show labels for meaningful values
+                ax.text(bar.get_x() + bar.get_width() / 2, val + err + 0.02,
+                        f'{val:.3f}', ha='center', va='bottom',
+                        fontsize=8, fontweight='bold', rotation=0)
+
+        # Customize the plot
+        ax.set_xlabel('Query Task', fontsize=14, fontweight='bold')
+        ax.set_ylabel('AUC Top-10 Score', fontsize=14, fontweight='bold')
+        ax.set_title('AUC Top-10 Performance by Query and Pipeline', fontsize=16, fontweight='bold')
+
+        # Set x-axis
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels([q.replace('_', ' ').title()[:20] for q in queries],
+                           rotation=45, ha='right', fontsize=10)
+
+        # Add legend
+        ax.legend(title='Pipeline', title_fontsize=12, fontsize=11, loc='upper right')
+
+        # Add grid
+        ax.grid(axis='y', alpha=0.3, linestyle='--')
+        ax.set_axisbelow(True)
+
+        # Set y-axis limits to avoid cramping
+        max_val = max(max(ss_data), max(it_data))
+        max_err = max(max(ss_errors), max(it_errors))
+        ax.set_ylim(0, max_val + max_err + 0.1)
+
+        # Improve layout
+        plt.tight_layout()
+
+        # Save the plot
+        plt.savefig(viz_dir / "auc_performance_clean.png", dpi=300, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        plt.close()
+
+        print(f"Clean AUC performance plot saved to: {viz_dir / 'auc_performance_clean.png'}")
+
+    def _create_auc_performance_plot_horizontal_fixed(self, auc_df, viz_dir):
+        """Create a horizontal AUC performance plot with fixed error bars and value labels outside the bars."""
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+
+        if auc_df.empty:
+            print("Warning: auc_df is empty. Skipping plot.")
+            return
+
+        # Calculate summary statistics
+        auc_summary = auc_df.groupby(['Query', 'Pipeline']).agg({
+            'AUC_Top10': ['mean', 'std', 'count']
+        }).round(4)
+        auc_summary.columns = ['AUC_Mean', 'AUC_Std', 'Count']
+        auc_summary = auc_summary.reset_index()
+
+        # Sort queries by average AUC
+        query_order = auc_summary.groupby('Query')['AUC_Mean'].mean().sort_values(ascending=True).index
+        queries = list(query_order)
+        n_queries = len(queries)
+
+        # Y positions
+        y_pos = np.arange(n_queries)
+        height = 0.35
+
+        # Prepare data and errors
+        ss_data, it_data = [], []
+        ss_err, it_err = [], []
+
+        for query in queries:
+            ss_row = auc_summary[(auc_summary['Query'] == query) & (auc_summary['Pipeline'] == 'Single-Shot')]
+            it_row = auc_summary[(auc_summary['Query'] == query) & (auc_summary['Pipeline'] == 'Iterative')]
+
+            ss_data.append(ss_row['AUC_Mean'].iloc[0] if len(ss_row) else 0.0)
+            it_data.append(it_row['AUC_Mean'].iloc[0] if len(it_row) else 0.0)
+            ss_err.append(ss_row['AUC_Std'].iloc[0] if len(ss_row) else 0.0)
+            it_err.append(it_row['AUC_Std'].iloc[0] if len(it_row) else 0.0)
+
+        # Determine maximum value for axis limit safely
+        max_val_ss = max([v + e for v, e in zip(ss_data, ss_err)] + [0])
+        max_val_it = max([v + e for v, e in zip(it_data, it_err)] + [0])
+        max_val = max(max_val_ss, max_val_it)
+
+        # Safety check for empty or NaN values
+        if np.isnan(max_val) or max_val == 0:
+            x_limit = 1.0
+        else:
+            x_limit = min(max_val * 1.15, 1.2)  # extend 15% for labels, cap at 1.2
+
+        # Create plot
+        fig, ax = plt.subplots(figsize=(14, 8 + n_queries * 0.4))
+
+        bars1 = ax.barh(y_pos - height / 2, ss_data, height, label='Single-Shot',
+                        color='#ff7f0e', alpha=0.8)
+        bars2 = ax.barh(y_pos + height / 2, it_data, height, label='Iterative',
+                        color='#1f77b4', alpha=0.8)
+
+        # Error bars
+        ax.errorbar(ss_data, y_pos - height / 2, xerr=ss_err, fmt='none',
+                    color='black', capsize=3, capthick=1, elinewidth=1)
+        ax.errorbar(it_data, y_pos + height / 2, xerr=it_err, fmt='none',
+                    color='black', capsize=3, capthick=1, elinewidth=1)
+
+        # Add labels outside the bars
+        for bar, val, err in zip(bars1, ss_data, ss_err):
+            if val > 0.001:
+                ax.text(val + err + 0.02, bar.get_y() + bar.get_height() / 2,
+                        f'{val:.3f}±{err:.3f}', ha='left', va='center',
+                        fontsize=11, fontweight='bold', color='black')
+
+        for bar, val, err in zip(bars2, it_data, it_err):
+            if val > 0.001:
+                ax.text(val + err + 0.02, bar.get_y() + bar.get_height() / 2,
+                        f'{val:.3f}±{err:.3f}', ha='left', va='center',
+                        fontsize=11, fontweight='bold', color='black')
+
+        # Customize plot
+        ax.set_ylabel('Query Task', fontsize=16, fontweight='bold')
+        ax.set_xlabel('AUC-10 Score', fontsize=16, fontweight='bold')
+        ax.set_title('AUC-10 Performance by Query and Pipeline', fontsize=18, fontweight='bold')
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels([q.replace('_', ' ').title() for q in queries], fontsize=13)
+        ax.legend(title='Workflow', title_fontsize=14, fontsize=13, loc='lower right')
+        ax.grid(axis='x', alpha=0.3, linestyle='--')
+        ax.set_axisbelow(True)
+
+        # Remove closed borders (top & right spines)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        # Set extended x-axis to accommodate labels safely
+        ax.set_xlim(0, x_limit)
+
+        # Padding & layout
+        plt.subplots_adjust(left=0.15, right=0.95, top=0.92, bottom=0.08)
+        plt.tight_layout()
+
+        # Save figure
+        plt.savefig(viz_dir / "auc_performance_horizontal_fixed.png", dpi=350,
+                    bbox_inches='tight', facecolor='white', edgecolor='none', pad_inches=0.2)
+        plt.close()
+
+        print(f"Horizontal AUC performance plot saved to: {viz_dir / 'auc_performance_horizontal_fixed.png'}")
+
+    def _create_query_performance_plot(self, auc_df, viz_dir):
+        """Create query performance heatmap"""
+        plt.figure(figsize=(14, 8))
+
+        # Check if we have data for both pipelines
+        if len(auc_df['Pipeline'].unique()) < 2:
+            print("Warning: Not enough pipeline data for heatmap")
+            return
+
+        # Create pivot table for heatmap with proper handling of missing values
+        heatmap_data = auc_df.pivot_table(
+            values='AUC_Top10',
+            index='Query',
+            columns='Pipeline',
+            aggfunc='mean',
+            fill_value=0  # Fill missing values with 0
+        )
+
+        # Ensure both pipeline columns exist
+        for pipeline in ['Single-Shot', 'Iterative']:
+            if pipeline not in heatmap_data.columns:
+                heatmap_data[pipeline] = 0
+
+        # Sort by best overall performance
+        heatmap_data['Overall'] = heatmap_data.mean(axis=1)
+        heatmap_data = heatmap_data.sort_values('Overall', ascending=False)
+        heatmap_data = heatmap_data.drop('Overall', axis=1)
+
+        # Create a mask for values that are 0 (no data)
+        mask = heatmap_data == 0
+
+        # Create heatmap with better formatting
+        fig, ax = plt.subplots(figsize=(14, max(8, len(heatmap_data) * 0.4)))
+
+        # Use a diverging colormap that makes 0 values stand out
+        cmap = sns.color_palette("viridis", as_cmap=True)
+
+        # Plot the heatmap
+        sns.heatmap(heatmap_data,
+                    annot=True,
+                    fmt='.3f',
+                    cmap=cmap,
+                    cbar_kws={'label': 'AUC Top-10 Score'},
+                    square=False,
+                    mask=mask,
+                    ax=ax,
+                    annot_kws={'size': 10, 'weight': 'bold'})
+
+        # Add a different color for missing values
+        if mask.any().any():
+            # Add text for missing values
+            for i in range(len(heatmap_data.index)):
+                for j in range(len(heatmap_data.columns)):
+                    if mask.iloc[i, j]:
+                        ax.text(j + 0.5, i + 0.5, 'N/A',
+                                ha='center', va='center',
+                                fontsize=9, style='italic', color='gray')
+
+        plt.title('Query Performance Heatmap (AUC Top-10)', fontsize=16, fontweight='bold')
+        plt.xlabel('Pipeline', fontsize=12)
+        plt.ylabel('Query Task', fontsize=12)
+
+        # Rotate x-axis labels for better readability
+        plt.xticks(rotation=45, ha='right')
+
+        # Adjust layout to prevent cutting off labels
+        plt.tight_layout()
+
+        plt.savefig(viz_dir / "query_performance_heatmap.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+        print(f"Query performance heatmap saved to: {viz_dir / 'query_performance_heatmap.png'}")
+
+
+    def _create_score_distribution_plot(self, df, viz_dir):
+        """Create score distribution plots"""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+
+        # 1. Overall score distribution by pipeline
+        for pipeline in df['Pipeline'].unique():
+            subset = df[df['Pipeline'] == pipeline]
+            ax1.hist(subset['Oracle_Score'], alpha=0.7, label=pipeline,
+                     bins=50, density=True, edgecolor='black', linewidth=0.5)
+        ax1.set_xlabel('Oracle Score')
+        ax1.set_ylabel('Density')
+        ax1.set_title('Score Distribution by Pipeline', fontweight='bold')
+        ax1.legend()
+        ax1.grid(alpha=0.3)
+
+        # 2. Box plot of scores by pipeline
+        sns.boxplot(data=df, x='Pipeline', y='Oracle_Score', ax=ax2)
+        ax2.set_title('Score Distribution Box Plot', fontweight='bold')
+        ax2.set_ylabel('Oracle Score')
+        ax2.grid(alpha=0.3)
+
+        # 3. Top queries score distribution
+        top_queries = df.groupby('Query')['Oracle_Score'].mean().nlargest(6).index
+        top_df = df[df['Query'].isin(top_queries)]
+
+        sns.violinplot(data=top_df, x='Query', y='Oracle_Score', ax=ax3)
+        ax3.set_title('Score Distribution for Top 6 Queries', fontweight='bold')
+        ax3.set_xlabel('Query Task')
+        ax3.set_ylabel('Oracle Score')
+        plt.setp(ax3.get_xticklabels(), rotation=45, ha='right')
+
+        # 4. High-score analysis
+        high_score_threshold = df['Oracle_Score'].quantile(0.9)
+        high_score_counts = df[df['Oracle_Score'] >= high_score_threshold].groupby(
+            ['Query', 'Pipeline']).size().reset_index(name='Count')
+
+        if len(high_score_counts) > 0:
+            sns.barplot(data=high_score_counts, x='Query', y='Count', hue='Pipeline', ax=ax4)
+            ax4.set_title(f'High Score Count (≥{high_score_threshold:.2f}) by Query', fontweight='bold')
+            ax4.set_xlabel('Query Task')
+            ax4.set_ylabel('Count of High Scoring Molecules')
+            plt.setp(ax4.get_xticklabels(), rotation=45, ha='right')
+        else:
+            ax4.text(0.5, 0.5, 'No high-scoring molecules found',
+                     ha='center', va='center', transform=ax4.transAxes)
+            ax4.set_title('High Score Analysis', fontweight='bold')
+
+        plt.tight_layout()
+        plt.savefig(viz_dir / "score_distributions.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _create_pipeline_efficiency_plot(self, auc_df, viz_dir):
+        """Simplified pipeline efficiency analysis with 2 clean, readable plots."""
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12), gridspec_kw={'height_ratios': [1, 1], 'hspace': 0.4})
+
+        # Consistent pipeline colors
+        colors = {'Single-Shot': '#ff7f0e', 'Iterative': '#1f77b4'}
+
+        # === 1. Efficiency scatter plot ===
+        efficiency_data = auc_df.groupby('Pipeline').agg({
+            'AUC_Top10': 'mean',
+            'N_Molecules': 'mean'
+        }).reset_index()
+
+        for _, row in efficiency_data.iterrows():
+            ax1.scatter(row['N_Molecules'], row['AUC_Top10'],
+                        s=500, alpha=0.8, color=colors[row['Pipeline']],
+                        edgecolor='black', linewidth=1.4)
+
+            ax1.annotate(f"{row['Pipeline']}\nAUC={row['AUC_Top10']:.3f}",
+                         (row['N_Molecules'], row['AUC_Top10']),
+                         xytext=(12, 10), textcoords='offset points',
+                         fontweight='bold', fontsize=14)
+
+        ax1.set_xlabel('Average Molecules Generated', fontsize=15, fontweight='bold')
+        ax1.set_ylabel('Average AUC-10', fontsize=15, fontweight='bold')
+        ax1.set_title('Workflow Efficiency: Performance vs Output', fontsize=17, fontweight='bold')
+        ax1.tick_params(axis='both', which='major', labelsize=13)
+        ax1.grid(alpha=0.3, linestyle='--')
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+
+        # Custom legend for scatter plot
+        handles = [plt.Line2D([0], [0], marker='o', color='w',
+                              markerfacecolor=colors[p], markeredgecolor='black',
+                              markersize=14, label=p)
+                   for p in efficiency_data['Pipeline']]
+        ax1.legend(handles=handles, title="Workflow",
+                   fontsize=13, title_fontsize=14,
+                   loc='upper left', bbox_to_anchor=(1, 1))
+
+        fig.add_artist(
+            plt.Line2D([0, 1], [0.5, 0.5], color='gray', linewidth=1.5, transform=fig.transFigure, figure=fig,
+                       clip_on=False))
+
+        # === 2. Success rate analysis ===
+        success_data = []
+        thresholds = [0.5, 0.7, 0.8, 0.9]
+
+        for threshold in thresholds:
+            for pipeline in auc_df['Pipeline'].unique():
+                pipeline_data = auc_df[auc_df['Pipeline'] == pipeline]
+                total_runs = len(pipeline_data)
+                successful_runs = len(pipeline_data[pipeline_data['Max_Score'] >= threshold])
+                success_rate = successful_runs / total_runs * 100 if total_runs > 0 else 0
+
+                success_data.append({
+                    'Threshold': f'≥{threshold}',
+                    'Pipeline': pipeline,
+                    'Success_Rate': success_rate
+                })
+
+        success_df = pd.DataFrame(success_data)
+
+        bars = sns.barplot(
+            data=success_df, x='Threshold', y='Success_Rate',
+            hue='Pipeline', ax=ax2,
+            palette=colors, alpha=0.9
+        )
+
+        # Add value labels on bars
+        for container in ax2.containers:
+            ax2.bar_label(container, fmt="%.1f%%", label_type='edge',
+                          fontsize=12, padding=3, fontweight='bold')
+
+        ax2.set_title('Success Rate by Score Threshold', fontsize=17, fontweight='bold')
+        ax2.set_ylabel('Success Rate (%)', fontsize=15, fontweight='bold')
+        ax2.set_xlabel('Score Threshold', fontsize=15, fontweight='bold')
+        ax2.tick_params(axis='both', which='major', labelsize=13)
+        ax2.grid(axis='y', alpha=0.3, linestyle='--')
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+
+        # Move barplot legend outside for clarity
+        ax2.legend(title="Workflow", fontsize=13, title_fontsize=14, bbox_to_anchor=(1, 1), loc='upper left')
+
+        # Save figure
+        plt.tight_layout()
+        plt.savefig(viz_dir / "pipeline_efficiency_simplified_large.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+        print(
+            f"Simplified pipeline efficiency analysis saved to: {viz_dir / 'pipeline_efficiency_simplified_large.png'}")
+
     def create_top_performers_analysis(self, all_evaluations):
         """Create detailed top performers analysis with clear task identification"""
-        print("\n🏆 Creating Top Performers Analysis...")
+        print("\nCreating Top Performers Analysis...")
 
         # Create visualization directory
         viz_dir = self.results_dir / "visualizations"
@@ -297,7 +789,7 @@ class ComprehensiveOracleEvaluator:
                     })
 
         if not auc_data:
-            print("❌ No AUC data available")
+            print("No AUC data available")
             return
 
         auc_df = pd.DataFrame(auc_data)
@@ -410,7 +902,7 @@ class ComprehensiveOracleEvaluator:
 
         # Print detailed top performers table
         print("\n" + "=" * 100)
-        print("🏆 TOP 10 PERFORMING TASKS (DETAILED)")
+        print("TOP 10 PERFORMING TASKS (DETAILED)")
         print("=" * 100)
         print(f"{'Rank':<4} {'Task':<25} {'Oracle':<20} {'Pipeline':<12} {'AUC-10':<10} {'±Std':<8}")
         print("-" * 100)
@@ -424,7 +916,7 @@ class ComprehensiveOracleEvaluator:
         it_count = len(top_10[top_10['Pipeline'] == 'Iterative'])
 
         print("-" * 100)
-        print(f"📊 PIPELINE DISTRIBUTION IN TOP 10:")
+        print(f"PIPELINE DISTRIBUTION IN TOP 10:")
         print(f"   Single-Shot: {ss_count}/10 tasks ({ss_count * 10}%)")
         print(f"   Iterative: {it_count}/10 tasks ({it_count * 10}%)")
 
@@ -432,7 +924,7 @@ class ComprehensiveOracleEvaluator:
         best_ss = auc_df[auc_df['Pipeline'] == 'Single-Shot'].nlargest(1, 'AUC_Mean')
         best_it = auc_df[auc_df['Pipeline'] == 'Iterative'].nlargest(1, 'AUC_Mean')
 
-        print(f"\n🥇 BEST PERFORMANCE BY PIPELINE:")
+        print(f"\nBEST PERFORMANCE BY PIPELINE:")
         if len(best_ss) > 0:
             row = best_ss.iloc[0]
             print(f"   Single-Shot Best: {row['Query']} (AUC: {row['AUC_Mean']:.4f}±{row['AUC_Std']:.4f})")
@@ -465,204 +957,14 @@ class ComprehensiveOracleEvaluator:
                 row = best_it.iloc[0]
                 f.write(f"BEST ITERATIVE: {row['Query']} (AUC: {row['AUC_Mean']:.4f}±{row['AUC_Std']:.4f})\n")
 
-        print(f"\n💾 Top performers analysis saved to: {viz_dir / 'top_performers_detailed.png'}")
-        print(f"💾 Top performers table saved to: {tables_dir / 'top_10_performers.txt'}")
+        print(f"\nTop performers analysis saved to: {viz_dir / 'top_performers_detailed.png'}")
+        print(f"Top performers table saved to: {tables_dir / 'top_10_performers.txt'}")
 
         return top_10
 
-    def create_simple_visualizations(self, all_evaluations):
-        """Create comprehensive visualizations in a single folder"""
-        print("\n📊 Creating visualizations...")
-
-        # Create single visualization directory
-        viz_dir = self.results_dir / "visualizations"
-        viz_dir.mkdir(exist_ok=True)
-
-        # Prepare data
-        plot_data = []
-        auc_data = []
-        top10_progression_data = []
-
-        for query_name, eval_data in all_evaluations.items():
-            if eval_data is None:
-                continue
-
-            for pipeline in ['single_shot', 'iterative']:
-                pipeline_name = pipeline.replace('_', '-').title()
-
-                for run in eval_data[pipeline]['runs']:
-                    # Individual molecule data
-                    for mol in run['molecules']:
-                        plot_data.append({
-                            'Query': query_name,
-                            'Pipeline': pipeline_name,
-                            'Run': run['run'],
-                            'Oracle_Score': mol['Oracle_Score'],
-                            'MW': mol.get('MW', 0),
-                            'LogP': mol.get('LogP', 0),
-                            'TPSA': mol.get('TPSA', 0),
-                            'QED': mol.get('QED', 0),
-                            'HBD': mol.get('HBD', 0),
-                            'HBA': mol.get('HBA', 0),
-                            'RotBonds': mol.get('RotBonds', 0)
-                        })
-
-                    # AUC data
-                    auc_data.append({
-                        'Query': query_name,
-                        'Pipeline': pipeline_name,
-                        'Run': run['run'],
-                        'AUC_Top10': run['auc_top_10'],
-                        'Top10_Mean': run['top_10_mean'],
-                        'Max_Score': run['max_score'],
-                        'N_Molecules': len(run['molecules'])
-                    })
-
-                    # Top-10 progression data
-                    top_scores = sorted([mol['Oracle_Score'] for mol in run['molecules']], reverse=True)[:10]
-                    for rank, score in enumerate(top_scores, 1):
-                        top10_progression_data.append({
-                            'Query': query_name,
-                            'Pipeline': pipeline_name,
-                            'Run': run['run'],
-                            'Rank': rank,
-                            'Score': score
-                        })
-
-        if not plot_data:
-            print("❌ No data for visualization")
-            return None, None, None
-
-        df = pd.DataFrame(plot_data)
-        auc_df = pd.DataFrame(auc_data)
-        top10_df = pd.DataFrame(top10_progression_data)
-
-        # Create main comprehensive plot
-        fig = plt.figure(figsize=(20, 16))
-
-        # 1. Main AUC Results
-        ax1 = plt.subplot(3, 3, 1)
-        auc_summary = auc_df.groupby(['Query', 'Pipeline']).agg({
-            'AUC_Top10': ['mean', 'std']
-        }).round(4)
-        auc_summary.columns = ['AUC_Mean', 'AUC_Std']
-        auc_summary = auc_summary.reset_index()
-
-        sns.barplot(data=auc_summary, x='Query', y='AUC_Mean', hue='Pipeline', ax=ax1)
-        ax1.set_title("AUC Top-10 Performance", fontsize=14, fontweight='bold')
-        ax1.set_ylabel("AUC Top-10")
-        plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
-
-        # 2. Pipeline Comparison
-        ax2 = plt.subplot(3, 3, 2)
-        sns.violinplot(data=auc_df, x='Pipeline', y='AUC_Top10', ax=ax2)
-        ax2.set_title("AUC Distribution by Pipeline", fontweight='bold')
-
-        # 3. Success Rate
-        ax3 = plt.subplot(3, 3, 3)
-        success_data = []
-        for (query, pipeline), group in df.groupby(['Query', 'Pipeline']):
-            high_scores = len(group[group['Oracle_Score'] > 0.8])
-            total = len(group)
-            success_rate = high_scores / total if total > 0 else 0
-            success_data.append({
-                'Query': query,
-                'Pipeline': pipeline,
-                'Success_Rate': success_rate * 100
-            })
-
-        success_df = pd.DataFrame(success_data)
-        sns.boxplot(data=success_df, x='Pipeline', y='Success_Rate', ax=ax3)
-        ax3.set_title("Success Rate (Score > 0.8)", fontweight='bold')
-        ax3.set_ylabel("Success Rate (%)")
-
-        # 4. MW vs Oracle Score
-        ax4 = plt.subplot(3, 3, 4)
-        scatter = ax4.scatter(df['MW'], df['Oracle_Score'], c=df['LogP'], cmap='viridis', alpha=0.6, s=15)
-        ax4.set_xlabel("Molecular Weight")
-        ax4.set_ylabel("Oracle Score")
-        ax4.set_title("MW vs Oracle Score (colored by LogP)")
-        plt.colorbar(scatter, ax=ax4, label='LogP')
-
-        # 5. LogP vs Oracle Score
-        ax5 = plt.subplot(3, 3, 5)
-        scatter2 = ax5.scatter(df['LogP'], df['Oracle_Score'], c=df['TPSA'], cmap='plasma', alpha=0.6, s=15)
-        ax5.set_xlabel("LogP")
-        ax5.set_ylabel("Oracle Score")
-        ax5.set_title("LogP vs Oracle Score (colored by TPSA)")
-        plt.colorbar(scatter2, ax=ax5, label='TPSA')
-
-        # 6. Query Heatmap
-        ax6 = plt.subplot(3, 3, 6)
-        heatmap_data = auc_df.pivot_table(values='AUC_Top10', index='Query', columns='Pipeline', aggfunc='mean')
-        sns.heatmap(heatmap_data, annot=True, fmt='.3f', cmap='viridis', ax=ax6)
-        ax6.set_title("Query Performance Heatmap")
-
-        # 7. Score Distribution
-        ax7 = plt.subplot(3, 3, 7)
-        for pipeline in df['Pipeline'].unique():
-            subset = df[df['Pipeline'] == pipeline]
-            ax7.hist(subset['Oracle_Score'], alpha=0.6, label=pipeline, bins=30, density=True)
-        ax7.set_xlabel("Oracle Score")
-        ax7.set_ylabel("Density")
-        ax7.set_title("Score Distribution")
-        ax7.legend()
-
-        # 8. FIXED Top Performers with task labels
-        ax8 = plt.subplot(3, 3, 8)
-        top_10_tasks = auc_summary.nlargest(10, 'AUC_Mean').reset_index(drop=True)
-        colors = ['#1f77b4' if x == 'Single-Shot' else '#ff7f0e' for x in top_10_tasks['Pipeline']]
-        bars = ax8.bar(range(len(top_10_tasks)), top_10_tasks['AUC_Mean'], color=colors, alpha=0.8)
-
-        # Add task labels with rotation
-        task_labels = [f"{row['Query'][:10]}" for _, row in top_10_tasks.iterrows()]
-        ax8.set_xticks(range(len(top_10_tasks)))
-        ax8.set_xticklabels(task_labels, rotation=45, ha='right', fontsize=8)
-
-        # Add value labels on bars
-        for i, (bar, row) in enumerate(zip(bars, top_10_tasks.iterrows())):
-            ax8.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                     f'{row[1]["AUC_Mean"]:.3f}', ha='center', va='bottom', fontsize=8)
-
-        ax8.set_title("Top 10 Performers (with task names)", fontsize=12, fontweight='bold')
-        ax8.set_ylabel("AUC Top-10")
-
-        # Add legend
-        from matplotlib.patches import Patch
-        legend_elements = [Patch(facecolor='#1f77b4', label='Single-Shot'),
-                           Patch(facecolor='#ff7f0e', label='Iterative')]
-        ax8.legend(handles=legend_elements, loc='upper right', fontsize=8)
-
-        # 9. Efficiency Analysis
-        ax9 = plt.subplot(3, 3, 9)
-        efficiency_data = auc_df.groupby('Pipeline').agg({
-            'AUC_Top10': 'mean',
-            'N_Molecules': 'mean'
-        }).reset_index()
-
-        for i, (_, row) in enumerate(efficiency_data.iterrows()):
-            ax9.scatter(row['N_Molecules'], row['AUC_Top10'], s=300, alpha=0.7, label=row['Pipeline'])
-            ax9.annotate(row['Pipeline'], (row['N_Molecules'], row['AUC_Top10']),
-                         xytext=(10, 10), textcoords='offset points', fontweight='bold')
-
-        ax9.set_xlabel("Average Molecules Generated")
-        ax9.set_ylabel("Average AUC Top-10")
-        ax9.set_title("Pipeline Efficiency")
-        ax9.grid(alpha=0.3)
-
-        plt.tight_layout()
-        plt.savefig(viz_dir / "comprehensive_oracle_evaluation.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # Create detailed top performers analysis
-        self.create_top_performers_analysis(all_evaluations)
-
-        print(f"📊 Visualizations saved to: {viz_dir}")
-        return df, auc_df, top10_df
-
     def create_latex_tables(self, all_evaluations):
         """Create LaTeX tables with corrected Best Score calculations"""
-        print("\n📋 Creating LaTeX tables...")
+        print("\nCreating LaTeX tables...")
 
         # Create tables directory
         tables_dir = self.results_dir / "tables"
@@ -839,7 +1141,7 @@ class ComprehensiveOracleEvaluator:
         with open(filename, 'w') as f:
             f.write(latex_content)
 
-        print(f"📄 LaTeX table saved: {filename}")
+        print(f"LaTeX table saved: {filename}")
 
     def _create_combined_latex_table(self, ss_df, it_df, filename):
         """Create a combined comparison LaTeX table"""
@@ -890,11 +1192,11 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         with open(filename, 'w') as f:
             f.write(latex_content)
 
-        print(f"📄 Combined LaTeX table saved: {filename}")
+        print(f"Combined LaTeX table saved: {filename}")
 
     def _create_taskwise_comparison_table(self, ss_df, it_df, filename):
         """Create a task-wise comparison LaTeX table with best scores in bold (simplified without Oracle column)"""
-        print("\n📊 Creating task-wise comparison table...")
+        print("\nCreating task-wise comparison table...")
 
         # Merge dataframes on Query name
         comparison_data = []
@@ -1038,7 +1340,7 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
             f.write(latex_content)
 
         # Print summary to console with detailed breakdown
-        print(f"\n📊 TASK-WISE COMPARISON SUMMARY:")
+        print(f"\nTASK-WISE COMPARISON SUMMARY:")
         print(f"   Total Tasks: {total_tasks}")
         print(f"   Single-Shot Wins: {ss_wins} ({ss_win_pct:.1f}%)")
         print(f"   Iterative Wins: {it_wins} ({it_win_pct:.1f}%)")
@@ -1048,32 +1350,17 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         print(
             f"   Total Top-10 - SS: {total_ss_top10:.4f}, IT: {total_it_top10:.4f}, Diff: {total_it_top10 - total_ss_top10:+.4f}")
 
-        # Print detailed breakdown of ties for debugging
-        print(f"\n🔍 DETAILED TIE ANALYSIS:")
-        tie_tasks = []
-        for data in comparison_data:
-            auc_diff = abs(data['SS_AUC'] - data['IT_AUC'])
-            if auc_diff <= TOLERANCE:
-                tie_tasks.append(f"{data['Task']} (AUC diff: {auc_diff:.6f})")
-
-        if tie_tasks:
-            print(f"   Tasks with AUC ties (tolerance: {TOLERANCE}):")
-            for tie_task in tie_tasks:
-                print(f"     - {tie_task}")
-        else:
-            print(f"   No AUC ties found (tolerance: {TOLERANCE})")
-
-        print(f"📄 Task-wise comparison table saved: {filename}")
+        print(f"Task-wise comparison table saved: {filename}")
 
         return comparison_data
 
     def _print_corrected_summary(self, ss_df, it_df):
         """Print corrected summary with proper Best Score explanation"""
         print("\n" + "=" * 120)
-        print("🏆 CORRECTED FINAL RESULTS SUMMARY")
+        print("CORRECTED FINAL RESULTS SUMMARY")
         print("=" * 120)
 
-        print(f"\n📊 METRIC EXPLANATIONS:")
+        print(f"\nMETRIC EXPLANATIONS:")
         print(f"   • AUC-10: Area Under Curve for top-10 molecules (higher = better)")
         print(f"   • Top-10: Average score of top-10 molecules per run")
         print(f"   • Best: Highest single molecule score across ALL runs for each task")
@@ -1097,7 +1384,7 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         it_runs = it_df['N_Runs'].sum()
         it_molecules = it_df['Total_Molecules'].sum()
 
-        print(f"\n🥇 SINGLE-SHOT PIPELINE SUMMARY:")
+        print(f"\nSINGLE-SHOT PIPELINE SUMMARY:")
         print(f"   Tasks: {len(ss_df)}")
         print(f"   AUC Sum: {ss_auc_sum:.4f} (sum of all task AUC scores)")
         print(f"   AUC Mean: {ss_auc_mean:.4f} (average AUC per task)")
@@ -1107,7 +1394,7 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         print(f"   Total Runs: {ss_runs}")
         print(f"   Total Molecules: {ss_molecules}")
 
-        print(f"\n🚀 ITERATIVE PIPELINE SUMMARY:")
+        print(f"\nITERATIVE PIPELINE SUMMARY:")
         print(f"   Tasks: {len(it_df)}")
         print(f"   AUC Sum: {it_auc_sum:.4f} (sum of all task AUC scores)")
         print(f"   AUC Mean: {it_auc_mean:.4f} (average AUC per task)")
@@ -1123,7 +1410,7 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         top10_sum_diff = it_top10_sum - ss_top10_sum
         best_sum_diff = it_best_sum - ss_best_sum
 
-        print(f"\n📈 DIFFERENCES (Iterative - Single-Shot):")
+        print(f"\nDIFFERENCES (Iterative - Single-Shot):")
         print(f"   AUC Sum Difference: {auc_sum_diff:+.4f}")
         print(f"   AUC Mean Difference: {auc_mean_diff:+.4f}")
         print(f"   Top-10 Sum Difference: {top10_sum_diff:+.4f}")
@@ -1135,7 +1422,7 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         top10_winner = "Iterative" if top10_sum_diff > 0 else "Single-Shot" if top10_sum_diff < 0 else "Tie"
         best_winner = "Iterative" if best_sum_diff > 0 else "Single-Shot" if best_sum_diff < 0 else "Tie"
 
-        print(f"\n🏆 WINNERS:")
+        print(f"\nWINNERS:")
         print(f"   AUC Sum Winner: {auc_sum_winner}")
         print(f"   AUC Mean Winner: {auc_mean_winner}")
         print(f"   Top-10 Sum Winner: {top10_winner}")
@@ -1143,36 +1430,39 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
 
     def run_complete_evaluation(self):
         """Run the complete oracle evaluation pipeline"""
-        print("🚀 Starting Complete Oracle Evaluation with TDC")
+        print("Starting Complete Oracle Evaluation with TDC")
         print("=" * 80)
 
         # Extract experiment results
         experiment_results = self.extract_experiment_results()
 
         if not experiment_results:
-            print("❌ No experiment results found!")
+            print("No experiment results found!")
             return None
 
-        print(f"✅ Found results for {len(experiment_results)} queries")
+        print(f"Found results for {len(experiment_results)} queries")
 
         # Evaluate each query
         all_evaluations = {}
         successful_evaluations = 0
 
         for query_name, query_results in experiment_results.items():
-            print(f"\n🔍 Processing query: {query_name}")
+            print(f"\nProcessing query: {query_name}")
             evaluation = self.evaluate_query_results(query_name, query_results)
             all_evaluations[query_name] = evaluation
 
             if evaluation is not None:
                 successful_evaluations += 1
 
-        print(f"\n✅ Successfully evaluated {successful_evaluations}/{len(experiment_results)} queries")
+        print(f"\nSuccessfully evaluated {successful_evaluations}/{len(experiment_results)} queries")
 
-        # Create visualizations (single folder) - this now includes top performers analysis
-        df, auc_df, top10_df = self.create_simple_visualizations(all_evaluations)
+        # Create clean visualizations (separate neat plots)
+        df, auc_df = self.create_clean_visualizations(all_evaluations)
 
-        # Create LaTeX tables (single folder) - now includes task-wise comparison
+        # Create detailed top performers analysis
+        self.create_top_performers_analysis(all_evaluations)
+
+        # Create LaTeX tables (includes task-wise comparison)
         ss_df, it_df = self.create_latex_tables(all_evaluations)
 
         # Save comprehensive results
@@ -1180,34 +1470,38 @@ Iterative & {len(it_df)} & {it_auc_sum:.4f} & {it_auc_mean:.4f} & {it_top10_sum:
         with open(results_file, 'w') as f:
             json.dump(all_evaluations, f, indent=2, default=str)
 
-        print(f"\n🎉 Complete evaluation finished!")
-        print(f"📊 Evaluated {successful_evaluations} queries with TDC oracles")
-        print(f"📈 Visualizations saved to: {self.results_dir / 'visualizations'}")
-        print(f"📋 LaTeX tables saved to: {self.results_dir / 'tables'}")
-        print(f"📋 Task-wise comparison table created (simplified format without Oracle column)")
-        print(f"💾 Detailed results saved to: {results_file}")
+        print(f"\nComplete evaluation finished!")
+        print(f"Evaluated {successful_evaluations} queries with TDC oracles")
+        print(f"Clean visualizations saved to: {self.results_dir / 'visualizations'}")
+        print(f"   • AUC performance with error bars")
+        print(f"   • Query performance heatmap")
+        print(f"   • Score distributions")
+        print(f"   • Pipeline efficiency analysis")
+        print(f"LaTeX tables saved to: {self.results_dir / 'tables'}")
+        print(f"Task-wise comparison table created")
+        print(f"Detailed results saved to: {results_file}")
 
-        return all_evaluations, df, auc_df, top10_df, ss_df, it_df
+        return all_evaluations, df, auc_df, ss_df, it_df
 
 
 def main():
     """Main execution function"""
-    evaluator = ComprehensiveOracleEvaluator(results_dir="scripts/Gemini2.0_Flash_Temp_1_Results")
+    evaluator = ComprehensiveOracleEvaluator(results_dir="results/Gemini_2.0_Flash_Temp_0.9_Results")
 
     try:
         results = evaluator.run_complete_evaluation()
 
         if results:
-            all_evaluations, df, auc_df, top10_df, ss_df, it_df = results
+            all_evaluations, df, auc_df, ss_df, it_df = results
 
             print("\n" + "=" * 80)
-            print("✅ TDC ORACLE EVALUATION COMPLETE!")
+            print("TDC ORACLE EVALUATION COMPLETE!")
             print("=" * 80)
 
             return results
 
     except Exception as e:
-        print(f"❌ Evaluation failed: {e}")
+        print(f"Evaluation failed: {e}")
         import traceback
         traceback.print_exc()
         return None

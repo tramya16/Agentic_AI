@@ -6,8 +6,8 @@ from llms.model_loader import load_llm
 from tools.tool_registry import VALIDATOR_TOOLS
 
 
-def create_validator_agent(llm_seed: int):
-    llm = load_llm(seed=llm_seed)
+def create_validator_agent(llm_seed: int, model_name="gemini_2.0_flash"):
+    llm = load_llm(seed=llm_seed,model_name=model_name)
     return Agent(
         role="Molecular Validation Specialist",
         goal="Apply comprehensive validation filters to ensure molecular quality and compliance",

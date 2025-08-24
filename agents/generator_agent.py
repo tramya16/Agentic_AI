@@ -4,8 +4,8 @@ from tools.tool_registry import GENERATOR_TOOLS
 import json
 
 
-def create_generator_agent(llm_seed: int):
-    llm = load_llm(seed=llm_seed)
+def create_generator_agent(llm_seed: int, model_name="gemini_2.0_flash"):
+    llm = load_llm(seed=llm_seed,model_name=model_name)
     return Agent(
         role="Molecular Designer",
         goal="Generate novel molecular structures using medicinal chemistry principles and iterative optimization",

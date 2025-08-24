@@ -4,8 +4,8 @@ from llms.model_loader import load_llm
 from tools.tool_registry import PARSER_TOOLS
 
 
-def create_parser_agent(llm_seed: int | None = None):
-    llm = load_llm(seed=llm_seed)
+def create_parser_agent(llm_seed: int | None = None, model_name="gemini_2.0_flash"):
+    llm = load_llm(seed=llm_seed,model_name=model_name)
     return Agent(
         role="Molecular Query Analyst",
         goal="Parse molecular design queries into comprehensive, actionable specifications for drug discovery",
