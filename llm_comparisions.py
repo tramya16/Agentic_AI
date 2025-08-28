@@ -37,12 +37,13 @@ class ResearchFocusedLLMComparator:
     def __init__(self, base_dir: str = "results"):
         self.base_dir = Path(base_dir)
 
-        # Create only pipeline-specific directories as main directories
-        self.single_shot_dir = Path("comparision_results_singleshot")
-        self.iterative_dir = Path("comparision_results_iterative")
+        # Create unified output directory structure under results/final_visualizations
+        self.output_dir = Path("results/final_visualizations")
+        self.single_shot_dir = self.output_dir / "single_shot_analysis"
+        self.iterative_dir = self.output_dir / "iterative_analysis"
 
         for pipeline_dir in [self.single_shot_dir, self.iterative_dir]:
-            pipeline_dir.mkdir(exist_ok=True)
+            pipeline_dir.mkdir(parents=True, exist_ok=True)
             (pipeline_dir / "visualizations").mkdir(exist_ok=True)
             (pipeline_dir / "tables").mkdir(exist_ok=True)
             (pipeline_dir / "data").mkdir(exist_ok=True)
@@ -1538,7 +1539,7 @@ class ResearchFocusedLLMComparator:
         summary_df.to_csv(self.single_shot_dir / "tables" / "llm_performance_summary.csv", index=False)
         summary_df.to_csv(self.iterative_dir / "tables" / "llm_performance_summary.csv", index=False)
 
-        print(f"Tables saved to pipeline-specific directories:")
+        print(f"Tables saved to unified directory structure:")
         print(f"  - Single-shot tables: {self.single_shot_dir / 'tables'}")
         print(f"  - Iterative tables: {self.iterative_dir / 'tables'}")
         return summary_df
@@ -1849,17 +1850,17 @@ class ResearchFocusedLLMComparator:
         self.print_research_conclusions(summary_df, comp_df, smiles_overlap_data)
 
         print(f"\nResearch-focused analysis completed!")
-        print(f"Results saved to pipeline-specific directories:")
+        print(f"Results saved to unified directory structure:")
         print(f"")
-        print(f"✓ Single-Shot Pipeline Analysis: {self.single_shot_dir}")
-        print(f"  - Visualizations: {self.single_shot_dir / 'visualizations'}")
-        print(f"  - Tables (including cross-LLM comparisons): {self.single_shot_dir / 'tables'}")
-        print(f"  - Raw Data: {self.single_shot_dir / 'data'}")
-        print(f"")
-        print(f"✓ Iterative Pipeline Analysis: {self.iterative_dir}")
-        print(f"  - Visualizations: {self.iterative_dir / 'visualizations'}")
-        print(f"  - Tables (including cross-LLM comparisons): {self.iterative_dir / 'tables'}")
-        print(f"  - Raw Data: {self.iterative_dir / 'data'}")
+        print(f"✓ All Results Directory: {self.output_dir}")
+        print(f"  ├── Single-Shot Analysis: {self.single_shot_dir}")
+        print(f"  │   ├── Visualizations: {self.single_shot_dir / 'visualizations'}")
+        print(f"  │   ├── Tables: {self.single_shot_dir / 'tables'}")
+        print(f"  │   └── Data: {self.single_shot_dir / 'data'}")
+        print(f"  └── Iterative Analysis: {self.iterative_dir}")
+        print(f"      ├── Visualizations: {self.iterative_dir / 'visualizations'}")
+        print(f"      ├── Tables: {self.iterative_dir / 'tables'}")
+        print(f"      └── Data: {self.iterative_dir / 'data'}")
         print(f"")
         print(f"Key outputs:")
         print(f"  - Cross-LLM comparison tables with AUC-10 rankings")

@@ -46,8 +46,8 @@ class ResearchQuestionAnalyzer:
         self.base_dir = Path(base_dir)
 
         # Create output directory
-        self.output_dir = Path("research_question_visualizations")
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir = Path("results/final_visualizations")
+        self.output_dir.mkdir(exist_ok=True, parents=True)
 
         # Professional color palette
         self.colors = {

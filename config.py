@@ -79,10 +79,22 @@ class ExperimentConfig:
 
 # Validation
 def validate_config():
-    """Validate configuration settings"""
-    required_env_vars = ["GEMINI_API_KEY", "HF_API_KEY"]
+    """Validate configuration settings based on active models"""
+    required_env_vars = []
+    
+    # Dynamically determine required environment variables based on active models
+    for model_key, model_config in ExperimentConfig.MODELS.items():
+        model_id = model_config.get("model_id", "")
+        
+        if model_id.startswith("gemini"):
+            if "GEMINI_API_KEY" not in required_env_vars:
+                required_env_vars.append("GEMINI_API_KEY")
+        elif model_id.startswith("DeepSeek") or "deepseek" in model_id.lower():
+            if "HF_API_KEY" not in required_env_vars:
+                required_env_vars.append("HF_API_KEY")
+        # Add other model types as needed
+    
     missing_vars = []
-
     for var in required_env_vars:
         if not os.getenv(var):
             missing_vars.append(var)

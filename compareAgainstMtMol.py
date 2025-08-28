@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from math import pi
+from pathlib import Path
 
 # Data from your table
 tasks = [
@@ -75,10 +76,15 @@ for angle, label in zip(angles, ax.get_xticklabels()):
 
 plt.tight_layout()
 
+# Create output directory
+output_dir = Path("results/final_visualizations")
+output_dir.mkdir(exist_ok=True, parents=True)
+
 # Save the chart as PNG
-plt.savefig('performance_comparison_radar_chart.png', dpi=300, bbox_inches='tight',
+output_path = output_dir / 'performance_comparison_radar_chart.png'
+plt.savefig(output_path, dpi=300, bbox_inches='tight',
             facecolor='white', edgecolor='none')
-print("Chart saved as 'performance_comparison_radar_chart.png'")
+print(f"Chart saved as '{output_path}'")
 
 # Don't show the plot (comment out if you want to see it)
 # plt.show()

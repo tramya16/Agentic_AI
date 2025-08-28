@@ -190,12 +190,47 @@ class ExperimentRunner:
             comparator = ResearchFocusedLLMComparator(base_dir=str(self.config.RESULTS_DIR))
             results = comparator.run_research_focused_analysis()
 
-            if results:
-                print("✅ LLM comparison completed successfully!")
-                return True
-            else:
+            if not results:
                 print("❌ LLM comparison failed!")
                 return False
+            
+            print("✅ LLM comparison completed successfully!")
+            
+            # Run additional visualizations
+            print("\n📊 Running additional research question visualizations...")
+            
+            try:
+                from ResearchQuestionsVisualizations import ResearchQuestionAnalyzer
+                
+                analyzer = ResearchQuestionAnalyzer(base_dir=str(self.config.RESULTS_DIR))
+                research_results = analyzer.run_research_question_analysis()
+                
+                if research_results:
+                    print("✅ Research question visualizations completed successfully!")
+                else:
+                    print("⚠️ Research question visualizations failed, but continuing...")
+                    
+            except Exception as e:
+                print(f"⚠️ Research question visualizations failed: {e}, but continuing...")
+            
+            # Run MT-MOL comparison visualization
+            print("\n📊 Running MT-MOL comparison visualization...")
+            
+            try:
+                import subprocess
+                result = subprocess.run(['python', 'compareAgainstMtMol.py'],
+                                     capture_output=True, text=True, cwd='.')
+                if result.returncode == 0:
+                    print("✅ MT-MOL comparison visualization completed successfully!")
+                    if result.stdout:
+                        print(result.stdout)
+                else:
+                    print(f"⚠️ MT-MOL comparison visualization failed: {result.stderr}, but continuing...")
+                    
+            except Exception as e:
+                print(f"⚠️ MT-MOL comparison visualization failed: {e}, but continuing...")
+            
+            return True
 
         except ImportError as e:
             print(f"❌ Could not import LLM comparator: {e}")
