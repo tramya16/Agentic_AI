@@ -2886,10 +2886,10 @@ class ResearchFocusedLLMComparator:
         self._write_cross_llm_table(all_task_data, llm_names, "Iterative", filename)
 
     def _write_cross_llm_table(self, all_task_data: Dict, llm_names: List[str], pipeline_name: str, filename: Path):
-        """Write cross-LLM comparison table with fixed LaTeX syntax"""
+        """Write simplified cross-LLM comparison table"""
         sorted_tasks = sorted(all_task_data.keys())
 
-        # Calculate wins for each LLM
+        # Calculate wins for each LLM based on AUC scores
         llm_wins = {llm: 0 for llm in llm_names}
         task_winners = {}
 
@@ -2905,44 +2905,42 @@ class ResearchFocusedLLMComparator:
             else:
                 task_winners[task_name] = "Tie" if len(winners) > 1 else "None"
 
-        # Create LaTeX table - only AUC-10 columns
+        # Create simplified LaTeX table
         num_llms = len(llm_names)
+
+        # Create column specification: task + (1 metric × num_llms) + winner
         col_spec = "|l|" + "c|" * num_llms + "c|"
 
-        latex_content = f"""\\begin{{table}}[h!]
-\\centering
-\\caption{{{pipeline_name} Pipeline: Cross-LLM AUC-10 Performance Comparison - Top-10 Molecule Analysis}}
-\\label{{tab:{pipeline_name.lower().replace('-', '_')}_cross_llm_auc10_comparison}}
-\\resizebox{{\\textwidth}}{{!}}{{%
-\\begin{{tabular}}{{{col_spec}}}
-\\hline
-\\multicolumn{{{num_llms + 2}}}{{|c|}}{{\\textbf{{\\Large AUC-10 PERFORMANCE ANALYSIS}}}} \\\\
-\\multicolumn{{{num_llms + 2}}}{{|c|}}{{\\textit{{Area Under Curve calculated from Top-10 molecules per task}}}} \\\\
-\\hline
-\\textbf{{Task}}"""
+        latex_content = f"""\\begin{{table}}[H]
+        \\centering
+        \\resizebox{{\\textwidth}}{{!}}{{%
+        \\begin{{tabular}}{{{col_spec}}}
+        \\hline
+        \\textbf{{Task}}"""
 
-        # Add LLM headers with AUC-10 emphasis
+        # Add headers for each LLM (AUC-10 only)
         for llm in llm_names:
             safe_llm = llm.replace('_', '\\_').replace('&', '\\&')
-            latex_content += f" & \\textbf{{{safe_llm}\\\\AUC-10}}"
-        latex_content += " & \\textbf{{Best\\\\Performer}} \\\\\n\\hline\n"
+            latex_content += f" & \\textbf{{{safe_llm}}}"
 
-        # Add task rows - only AUC-10 values
-        total_aucs = {llm: 0.0 for llm in llm_names}
+        latex_content += " & \\textbf{Winner} \\\\\n    \\hline\n"
+
+        # Add task rows
+        total_auc = {llm: 0.0 for llm in llm_names}
 
         for task_name in sorted_tasks:
             task_data = all_task_data[task_name]
             latex_task_name = task_name.replace('_', '\\_').replace('&', '\\&')
-            latex_content += f"{latex_task_name}"
+            latex_content += f"    {latex_task_name}"
 
             winner = task_winners.get(task_name, "None")
 
             for llm in llm_names:
                 if llm in task_data:
-                    data = task_data[llm]
-                    auc_val = data['auc']
-                    total_aucs[llm] += auc_val
+                    auc_val = task_data[llm]['auc']
+                    total_auc[llm] += auc_val
 
+                    # Format values, bold if winner
                     if winner == llm:
                         latex_content += f" & \\textbf{{{auc_val:.4f}}}"
                     else:
@@ -2952,59 +2950,46 @@ class ResearchFocusedLLMComparator:
 
             latex_content += f" & {winner} \\\\\n"
 
-        # Add summary section with proper LaTeX syntax
-        latex_content += "\\hline\n"
-        latex_content += f"\\multicolumn{{{num_llms + 2}}}{{|c|}}{{\\textbf{{SUMMARY STATISTICS}}}} \\\\\n"
-        latex_content += "\\hline\n"
+        # Add summary statistics
+        latex_content += "    \\hline\n"
+        latex_content += f"    \\multicolumn{{{num_llms + 2}}}{{|c|}}{{\\textbf{{SUMMARY STATISTICS}}}} \\\\\n"
+        latex_content += "    \\hline\n"
 
-        # Add wins for each LLM
+        # Total tasks
+        latex_content += f"    \\textbf{{Total Tasks}} & \\multicolumn{{{num_llms + 1}}}{{c|}}{{{len(sorted_tasks)}}} \\\\\n"
+
+        # Wins for each LLM
         for llm in llm_names:
             wins = llm_wins[llm]
             percentage = (wins / len(sorted_tasks)) * 100 if sorted_tasks else 0
             safe_llm = llm.replace('_', '\\_').replace('&', '\\&')
-            latex_content += f"\\textbf{{{safe_llm} Wins}} & \\multicolumn{{{num_llms + 1}}}{{c|}}{{{wins} ({percentage:.1f}\\%)}} \\\\\n"
+            latex_content += f"    \\textbf{{{safe_llm} Wins}} & \\multicolumn{{{num_llms + 1}}}{{c|}}{{{wins} ({percentage:.1f}\\%)}} \\\\\n"
 
-        # Add comprehensive summary section with AUC-10 emphasis
-        latex_content += "\\hline\n"
-        latex_content += f"\\multicolumn{{{num_llms + 2}}}{{|c|}}{{\\textbf{{\\Large PERFORMANCE SUMMARY}}}} \\\\\n"
-        latex_content += "\\hline\n"
+        # Add ties if any
+        ties = len([w for w in task_winners.values() if w == "Tie"])
+        if ties > 0:
+            tie_percentage = (ties / len(sorted_tasks)) * 100
+            latex_content += f"    \\textbf{{Ties}} & \\multicolumn{{{num_llms + 1}}}{{c|}}{{{ties} ({tie_percentage:.1f}\\%)}} \\\\\n"
 
-        # Add total AUC-10 scores with ranking
-        sorted_totals = sorted([(total_aucs[llm], llm) for llm in llm_names], reverse=True)
+        latex_content += "    \\hline\n"
 
-        latex_content += "\\textbf{{TOTAL AUC-10 SCORES}}"
+        # Add total AUC row
+        latex_content += "    \\textbf{Total AUC-10}"
         for llm in llm_names:
-            # Find rank
-            rank = next(i + 1 for i, (score, name) in enumerate(sorted_totals) if name == llm)
-            if rank == 1:
-                latex_content += f" & \\cellcolor{{green!40}}\\textbf{{\\#{rank}: {total_aucs[llm]:.4f}}}"
-            elif rank == 2:
-                latex_content += f" & \\cellcolor{{yellow!30}}\\textbf{{\\#{rank}: {total_aucs[llm]:.4f}}}"
-            elif rank == 3:
-                latex_content += f" & \\cellcolor{{orange!20}}\\textbf{{\\#{rank}: {total_aucs[llm]:.4f}}}"
-            else:
-                latex_content += f" & \\textbf{{\\#{rank}: {total_aucs[llm]:.4f}}}"
-        latex_content += " & \\textbf{{RANK}} \\\\\n"
+            latex_content += f" & {total_auc[llm]:.4f}"
+        latex_content += " & \\\\\n"
 
-        # Add average AUC-10 per task
-        latex_content += "\\textbf{{AVERAGE AUC-10}}"
-        for llm in llm_names:
-            avg_auc_10 = total_aucs[llm] / len(sorted_tasks) if sorted_tasks else 0
-            latex_content += f" & \\textbf{{{avg_auc_10:.4f}}}"
-        latex_content += " & \\textbf{{per Task}} \\\\\n"
-
-        latex_content += """\\hline
-\\end{tabular}%
-}
-\\end{table}
-
-\\vspace{0.5cm}
-\\textbf{Note:} AUC-10 scores represent the Area Under the Curve calculated from the top-10 highest-scoring molecules for each task. Higher scores indicate better performance in generating high-quality molecules. Rankings show overall performance across all tasks.
-"""
+        latex_content += """    \\hline
+        \\end{tabular}%
+        }
+        \\caption{""" + f"{pipeline_name} Pipeline: Cross-LLM AUC-10 Performance Comparison. The highest AUC-10 scores are highlighted in bold" + """}
+        \\label{tab:""" + f"{pipeline_name.lower().replace('-', '_')}_cross_llm_auc10_comparison" + """}
+    \\end{table}
+    """
 
         with open(filename, 'w') as f:
             f.write(latex_content)
-        print(f"    ✓ Created {pipeline_name} cross-LLM AUC-10 table with enhanced AUC-10 emphasis: {filename}")
+        print(f"    ✓ Created simplified {pipeline_name} cross-LLM comparison table: {filename}")
 
     def _create_pipeline_specific_llm_tables(self, llm_name: str, llm_evaluation: Dict, pipeline_type: str,
                                              tables_dir: Path):
@@ -3802,54 +3787,23 @@ class ResearchFocusedLLMComparator:
         plt.close()
 
     def _create_drug_likeness_analysis(self, mol_df: pd.DataFrame, pipeline_type: str, viz_dir: Path):
-        """Create comprehensive drug-likeness analysis"""
+        """Create simplified drug-likeness analysis (Lipinski + QED)"""
         print(f"    ✓ Creating {pipeline_type} drug-likeness analysis...")
 
         pipeline_name = pipeline_type.replace('_', '-').title()
 
         # Filter valid molecules
         valid_mol_df = mol_df[mol_df['Oracle_Score'] > 0].copy()
-
         if valid_mol_df.empty:
             print(f"      No valid molecules found for {pipeline_type} drug-likeness analysis")
             return
 
-        fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(16, 18))
-        fig.suptitle(f'{pipeline_name} Pipeline: Drug-Likeness Analysis',
-                     fontsize=16, fontweight='bold', y=0.98)
+        # Create figure with 2 large subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+        fig.suptitle(f'Drug-Likeness Analysis', fontsize=20, fontweight='bold', y=1.02)
 
-        # 1. QED Distribution by LLM
-        if 'QED' in valid_mol_df.columns and 'LLM' in valid_mol_df.columns:
-            llms = valid_mol_df['LLM'].unique()
-            qed_data = [valid_mol_df[valid_mol_df['LLM'] == llm]['QED'].values for llm in llms]
-
-            try:
-                parts = ax1.violinplot(qed_data, positions=range(len(llms)), showmeans=True, showmedians=True)
-                colors = ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D']
-                for i, pc in enumerate(parts['bodies']):
-                    pc.set_facecolor(colors[i % len(colors)])
-                    pc.set_alpha(0.7)
-
-                ax1.set_xticks(range(len(llms)))
-                ax1.set_xticklabels([llm[:15] + '...' if len(llm) > 15 else llm for llm in llms],
-                                    rotation=45, ha='right', fontsize=9)
-            except:
-                # Fallback to box plot
-                bp = ax1.boxplot(qed_data, labels=[llm[:10] + '...' if len(llm) > 10 else llm for llm in llms],
-                                 patch_artist=True)
-                colors = ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D']
-                for i, patch in enumerate(bp['boxes']):
-                    patch.set_facecolor(colors[i % len(colors)])
-                    patch.set_alpha(0.7)
-                plt.setp(ax1.get_xticklabels(), rotation=45, ha='right', fontsize=9)
-
-            ax1.set_ylabel('QED Score', fontweight='bold')
-            ax1.set_title('QED (Drug-Likeness) Distribution by LLM', fontweight='bold', pad=20)
-            ax1.grid(axis='y', alpha=0.3)
-
-        # 2. Lipinski's Rule of Five Compliance
+        # 1. Lipinski's Rule of Five Compliance
         if all(col in valid_mol_df.columns for col in ['MW', 'LogP', 'HBD', 'HBA']):
-            # Calculate Lipinski violations
             valid_mol_df['Lipinski_Violations'] = (
                     (valid_mol_df['MW'] > 500).astype(int) +
                     (valid_mol_df['LogP'] > 5).astype(int) +
@@ -3858,105 +3812,35 @@ class ResearchFocusedLLMComparator:
             )
 
             if 'LLM' in valid_mol_df.columns:
+                llms = valid_mol_df['LLM'].unique()
                 lipinski_stats = []
                 for llm in llms:
                     llm_data = valid_mol_df[valid_mol_df['LLM'] == llm]
                     compliant = len(llm_data[llm_data['Lipinski_Violations'] == 0])
                     total = len(llm_data)
                     compliance_rate = (compliant / total * 100) if total > 0 else 0
-
-                    lipinski_stats.append({
-                        'LLM': llm,
-                        'Compliant': compliant,
-                        'Total': total,
-                        'Compliance_Rate': compliance_rate
-                    })
+                    lipinski_stats.append(
+                        {'LLM': llm, 'Compliant': compliant, 'Total': total, 'Compliance_Rate': compliance_rate})
 
                 lipinski_df = pd.DataFrame(lipinski_stats)
-
                 if not lipinski_df.empty:
                     colors = ['#27ae60', '#e74c3c', '#f39c12', '#9b59b6'][:len(lipinski_df)]
-                    bars = ax2.bar(range(len(lipinski_df)), lipinski_df['Compliance_Rate'],
-                                   color=colors, alpha=0.8, edgecolor='black')
-
+                    bars = ax1.bar(range(len(lipinski_df)), lipinski_df['Compliance_Rate'], color=colors, alpha=0.8,
+                                   edgecolor='black')
                     for bar, row in zip(bars, lipinski_df.iterrows()):
                         height = bar.get_height()
-                        ax2.text(bar.get_x() + bar.get_width() / 2, height + 1,
-                                 f"{height:.1f}%\n({row[1]['Compliant']}/{row[1]['Total']})",
-                                 ha='center', va='bottom', fontweight='bold', fontsize=9)
+                        ax1.text(bar.get_x() + bar.get_width() / 2, height + 1,
+                                 f"{height:.1f}%\n",
+                                 ha='center', va='bottom', fontweight='bold', fontsize=12)
+                    ax1.set_xticks(range(len(lipinski_df)))
+                    ax1.set_xticklabels([llm[:15] + '...' if len(llm) > 15 else llm for llm in lipinski_df['LLM']],
+                                        rotation=45, ha='right', fontsize=12)
+                    ax1.set_ylabel('Lipinski Compliance Rate (%)', fontweight='bold', fontsize=14)
+                    ax1.set_title("Lipinski's Rule of Five Compliance", fontweight='bold', fontsize=16, pad=25)
+                    ax1.grid(axis='y', alpha=0.3)
 
-                    ax2.set_xticks(range(len(lipinski_df)))
-                    ax2.set_xticklabels([llm[:12] + '...' if len(llm) > 12 else llm for llm in lipinski_df['LLM']],
-                                        rotation=45, ha='right', fontsize=9)
-                    ax2.set_ylabel('Lipinski Compliance Rate (%)', fontweight='bold')
-                    ax2.set_title("Lipinski's Rule of Five Compliance", fontweight='bold', pad=20)
-                    ax2.grid(axis='y', alpha=0.3)
-
-        # 3. Molecular Weight Distribution
-        if 'MW' in valid_mol_df.columns:
-            # Overall distribution
-            ax3.hist(valid_mol_df['MW'], bins=30, alpha=0.7, color='#3498db', edgecolor='black')
-            ax3.axvline(valid_mol_df['MW'].mean(), color='red', linestyle='--', linewidth=2,
-                        label=f'Mean: {valid_mol_df["MW"].mean():.1f}')
-            ax3.axvline(500, color='orange', linestyle='--', linewidth=2, alpha=0.8,
-                        label='Lipinski Limit (500)')
-
-            ax3.set_xlabel('Molecular Weight (Da)', fontweight='bold')
-            ax3.set_ylabel('Frequency', fontweight='bold')
-            ax3.set_title('Molecular Weight Distribution', fontweight='bold', pad=20)
-            ax3.legend()
-            ax3.grid(axis='y', alpha=0.3)
-
-        # 4. LogP Distribution
-        if 'LogP' in valid_mol_df.columns:
-            ax4.hist(valid_mol_df['LogP'], bins=30, alpha=0.7, color='#e74c3c', edgecolor='black')
-            ax4.axvline(valid_mol_df['LogP'].mean(), color='red', linestyle='--', linewidth=2,
-                        label=f'Mean: {valid_mol_df["LogP"].mean():.2f}')
-            ax4.axvline(5, color='orange', linestyle='--', linewidth=2, alpha=0.8,
-                        label='Lipinski Limit (5)')
-
-            ax4.set_xlabel('LogP (Lipophilicity)', fontweight='bold')
-            ax4.set_ylabel('Frequency', fontweight='bold')
-            ax4.set_title('LogP Distribution', fontweight='bold', pad=20)
-            ax4.legend()
-            ax4.grid(axis='y', alpha=0.3)
-
-        # 5. Oracle Score vs QED Correlation
+        # 2. Drug-Likeness Quality Distribution (QED categories)
         if 'QED' in valid_mol_df.columns:
-            # Color by LLM if available
-            if 'LLM' in valid_mol_df.columns:
-                unique_llms = valid_mol_df['LLM'].unique()
-                colors = plt.cm.Set1(np.linspace(0, 1, len(unique_llms)))
-
-                for i, llm in enumerate(unique_llms):
-                    llm_data = valid_mol_df[valid_mol_df['LLM'] == llm]
-                    ax5.scatter(llm_data['QED'], llm_data['Oracle_Score'],
-                                alpha=0.6, s=20, c=[colors[i]], label=llm[:12] + '...' if len(llm) > 12 else llm)
-            else:
-                ax5.scatter(valid_mol_df['QED'], valid_mol_df['Oracle_Score'],
-                            alpha=0.6, s=20, c='#3498db')
-
-            # Add correlation line
-            if len(valid_mol_df) > 1:
-                z = np.polyfit(valid_mol_df['QED'], valid_mol_df['Oracle_Score'], 1)
-                p = np.poly1d(z)
-                ax5.plot(valid_mol_df['QED'], p(valid_mol_df['QED']), "r--", alpha=0.8, linewidth=2)
-
-                # Calculate correlation coefficient
-                corr = np.corrcoef(valid_mol_df['QED'], valid_mol_df['Oracle_Score'])[0, 1]
-                ax5.text(0.05, 0.95, f'Correlation: {corr:.3f}', transform=ax5.transAxes,
-                         bbox=dict(boxstyle='round', facecolor='white', alpha=0.8), fontweight='bold')
-
-            ax5.set_xlabel('QED (Drug-Likeness)', fontweight='bold')
-            ax5.set_ylabel('Oracle Score', fontweight='bold')
-            ax5.set_title('Oracle Performance vs Drug-Likeness', fontweight='bold', pad=20)
-            if 'LLM' in valid_mol_df.columns:
-                ax5.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
-            ax5.grid(alpha=0.3)
-
-        # 6. Drug-Likeness Quality Distribution
-        if 'QED' in valid_mol_df.columns:
-            # Categorize by QED ranges
             excellent_drug = len(valid_mol_df[valid_mol_df['QED'] > 0.8])
             good_drug = len(valid_mol_df[(valid_mol_df['QED'] > 0.6) & (valid_mol_df['QED'] <= 0.8)])
             moderate_drug = len(valid_mol_df[(valid_mol_df['QED'] > 0.4) & (valid_mol_df['QED'] <= 0.6)])
@@ -3966,28 +3850,19 @@ class ResearchFocusedLLMComparator:
             labels = ['Excellent (>0.8)', 'Good (0.6-0.8)', 'Moderate (0.4-0.6)', 'Poor (≤0.4)']
             colors = ['#27ae60', '#f39c12', '#e67e22', '#e74c3c']
 
-            # Filter out zero values
             non_zero_data = [(size, label, color) for size, label, color in zip(sizes, labels, colors) if size > 0]
             if non_zero_data:
                 sizes, labels, colors = zip(*non_zero_data)
-
-                wedges, texts, autotexts = ax6.pie(sizes, labels=labels, autopct='%1.1f%%',
-                                                   colors=colors, startangle=90,
-                                                   textprops={'fontsize': 10, 'fontweight': 'bold'})
-
+                wedges, texts, autotexts = ax2.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors,
+                                                   startangle=90, textprops={'fontsize': 12, 'fontweight': 'bold'})
                 for autotext in autotexts:
                     autotext.set_color('white')
                     autotext.set_fontweight('bold')
+            ax2.set_title('Drug-Likeness Quality Distribution\n(QED Categories)', fontweight='bold', fontsize=16)
 
-            ax6.set_title('Drug-Likeness Quality Distribution\n(QED Categories)',
-                          fontweight='bold', fontsize=12, pad=20)
-
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(viz_dir / f"{pipeline_type}_drug_likeness_analysis.png", dpi=300, bbox_inches='tight')
         plt.close()
-
-        # Create additional pharmaceutical properties analysis
-        self._create_pharmaceutical_properties_analysis(valid_mol_df, pipeline_type, viz_dir)
 
         print(f"    ✓ Created {pipeline_type} drug-likeness analysis")
 
