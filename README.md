@@ -194,6 +194,10 @@ Edit [`config.py`](config.py) to modify:
 
 ## Advanced Usage
 
+### Custom Molecular Queries
+
+Add custom molecular queries in [`improved_queries.py`](scripts/improved_queries.py) directory.
+
 ### Custom Oracle Functions
 
 Add custom molecular evaluation functions in [`oracle/`](oracle/) directory.
@@ -221,7 +225,7 @@ Key packages:
 
 - **Recommended**: 8GB+ RAM for full analysis
 - **Storage**: ~500MB for complete visualization suite
-- **Runtime**: 10-30 minutes depending on dataset size
+- **Runtime**: 10-30 minutes per molecular task (so depends on dataset size).
 
 ## Support
 
