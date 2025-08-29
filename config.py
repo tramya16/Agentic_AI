@@ -5,8 +5,6 @@ Configuration file for LLM molecular generation experiments
 import os
 from pathlib import Path
 
-from scripts.improved_queries import get_query_list
-
 
 # Experiment Configuration
 class ExperimentConfig:

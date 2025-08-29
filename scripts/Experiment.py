@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from pipeline_runner import PipelineRunner
-from .improved_queries import get_query_data,get_query_list
+from data.improved_queries import get_query_data,get_query_list
 from .molecular_metrics import MolecularMetrics, MetricsVisualizer
 from config import ExperimentConfig
 import matplotlib.pyplot as plt

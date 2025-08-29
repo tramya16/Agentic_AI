@@ -196,7 +196,7 @@ Edit [`config.py`](config.py) to modify:
 
 ### Custom Molecular Queries
 
-Add custom molecular queries in [`improved_queries.py`](scripts/improved_queries.py) directory.
+Add custom molecular queries in [`improved_queries.py`](data/improved_queries.py) directory.
 
 ### Custom Oracle Functions
 

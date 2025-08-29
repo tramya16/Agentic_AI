@@ -3,7 +3,6 @@
 import os
 from crewai import LLM
 from dotenv import load_dotenv
-from torch.cuda import temperature
 
 from config import ExperimentConfig
 
